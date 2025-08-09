@@ -40,7 +40,7 @@ importers:
         version: 15.4.6(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       openai:
         specifier: ^5.12.1
-        version: 5.12.1(zod@4.0.15)
+        version: 5.12.1(zod@3.25.76)
       react:
         specifier: 19.1.0
         version: 19.1.0
@@ -51,8 +51,8 @@ importers:
         specifier: ^3.1.2
         version: 3.1.2(@types/react@19.1.9)(react-dom@19.1.0(react@19.1.0))(react-is@16.13.1)(react@19.1.0)(redux@5.0.1)
       zod:
-        specifier: ^4.0.15
-        version: 4.0.15
+        specifier: ^3.23.8
+        version: 3.25.76
       zustand:
         specifier: ^5.0.7
         version: 5.0.7(@types/react@19.1.9)(immer@10.1.1)(react@19.1.0)(use-sync-external-store@1.5.0(react@19.1.0))
@@ -2246,8 +2246,8 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
 
-  zod@4.0.15:
-    resolution: {integrity: sha512-2IVHb9h4Mt6+UXkyMs0XbfICUh1eUrlJJAOupBHUhLRnKkruawyDddYRCs0Eizt900ntIMk9/4RksYl+FgSpcQ==}
+  zod@3.25.76:
+    resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
 
   zustand@5.0.7:
     resolution: {integrity: sha512-Ot6uqHDW/O2VdYsKLLU8GQu8sCOM1LcoE8RwvLv9uuRT9s6SOHCKs0ZEOhxg+I1Ld+A1Q5lwx+UlKXXUoCZITg==}
@@ -4071,9 +4071,9 @@ snapshots:
       define-properties: 1.2.1
       es-object-atoms: 1.1.1
 
-  openai@5.12.1(zod@4.0.15):
+  openai@5.12.1(zod@3.25.76):
     optionalDependencies:
-      zod: 4.0.15
+      zod: 3.25.76
 
   optionator@0.9.4:
     dependencies:
@@ -4607,7 +4607,7 @@ snapshots:
 
   yocto-queue@0.1.0: {}
 
-  zod@4.0.15: {}
+  zod@3.25.76: {}
 
   zustand@5.0.7(@types/react@19.1.9)(immer@10.1.1)(react@19.1.0)(use-sync-external-store@1.5.0(react@19.1.0)):
     optionalDependencies:
