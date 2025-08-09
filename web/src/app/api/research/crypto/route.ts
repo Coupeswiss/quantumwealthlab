@@ -23,7 +23,7 @@ async function fetchCryptoNews(query?: string) {
         }))
       });
     }
-        } catch {
+  } catch (e) {
     console.error("CoinGecko error:", e);
   }
   
@@ -47,7 +47,7 @@ async function fetchCryptoNews(query?: string) {
         }))
       });
     }
-        } catch {
+  } catch (e) {
     console.error("CryptoCompare error:", e);
   }
   
@@ -77,7 +77,7 @@ async function fetchCryptoNews(query?: string) {
           }
         });
       }
-          } catch {
+    } catch (e) {
       console.error("Coin detail error:", e);
     }
   }
@@ -108,7 +108,7 @@ async function fetchMacroData() {
         change: ((data.data?.[data.data.length - 1]?.[1] - data.data?.[0]?.[1]) / data.data?.[0]?.[1] * 100).toFixed(2)
       });
     }
-        } catch {
+  } catch (e) {
     // Fallback DXY value
     indicators.push({
       name: "US Dollar Index",

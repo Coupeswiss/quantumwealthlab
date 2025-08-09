@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { ArrowUp, ArrowDown, Sparkles, TrendingUp, Activity, DollarSign, Zap } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { ArrowUp, ArrowDown, Sparkles, TrendingUp, Newspaper, Activity, DollarSign, Zap } from "lucide-react";
+import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 type CryptoPrice = {
   price: number;

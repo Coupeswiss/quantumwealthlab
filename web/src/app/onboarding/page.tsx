@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { ArrowRight, Sparkles, User, Calendar } from "lucide-react";
+import { ArrowRight, Sparkles, User, Calendar, MapPin } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 

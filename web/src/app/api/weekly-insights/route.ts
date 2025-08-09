@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getCoinGeckoId, SYMBOL_TO_COINGECKO } from "@/lib/portfolio-utils";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -16,34 +17,13 @@ function shouldGenerateNewReport(lastGenerated: string | null): boolean {
   return daysSince >= 7;
 }
 
-// Fetch detailed market data for each holding with real-time prices
+// Fetch detailed market data for each holding with enhanced metrics
 async function getDetailedMarketData(holdings: any[]) {
   if (!holdings || holdings.length === 0) return {};
   
   try {
-    // Map common symbols to CoinGecko IDs
-    const symbolToId: Record<string, string> = {
-      'BTC': 'bitcoin',
-      'ETH': 'ethereum',
-      'BNB': 'binancecoin',
-      'SOL': 'solana',
-      'ADA': 'cardano',
-      'AVAX': 'avalanche-2',
-      'DOT': 'polkadot',
-      'MATIC': 'polygon',
-      'LINK': 'chainlink',
-      'UNI': 'uniswap',
-      'ATOM': 'cosmos',
-      'ARB': 'arbitrum',
-      'OP': 'optimism',
-      'USDT': 'tether',
-      'USDC': 'usd-coin'
-    };
-    
-    const ids = holdings.map(h => {
-      const symbol = h.symbol.toUpperCase();
-      return symbolToId[symbol] || symbol.toLowerCase();
-    }).filter(Boolean).join(',');
+    // Map symbols to CoinGecko IDs
+    const ids = holdings.map(h => getCoinGeckoId(h.symbol)).filter(Boolean).join(',');
     
     if (!ids) return {};
     
@@ -81,7 +61,7 @@ async function getDetailedMarketData(holdings: any[]) {
     });
     
     return marketData;
-  } catch {
+  } catch (error) {
     console.error('Market data error:', error);
     // Fallback to basic prices
     try {
@@ -106,19 +86,19 @@ async function getDetailedMarketData(holdings: any[]) {
   }
 }
 
-// Fetch latest crypto news
+// Fetch latest crypto news and market analysis
 async function getCryptoNews() {
   try {
-    // You could integrate with a news API here
-    // For now, return structured news categories
+    // In production, integrate with a news API like NewsAPI, CryptoPanic, or Messari
     return {
       macro: "Fed maintains hawkish stance, Bitcoin correlation with equities weakening",
       regulatory: "EU finalizes MiCA framework, US congressional hearing on stablecoins",
       institutional: "BlackRock BTC ETF sees record inflows, MicroStrategy adds to holdings",
       technical: "BTC tests 100k resistance, major support at 90k holding strong",
-      defi: "Ethereum L2s seeing massive growth, TVL reaches new highs"
+      defi: "Ethereum L2s seeing massive growth, TVL reaches new highs",
+      trending: "AI tokens surge on OpenAI developments, gaming tokens consolidate"
     };
-  } catch {
+  } catch (error) {
     return {
       macro: "Markets await Fed decision",
       technical: "Key resistance levels being tested"
@@ -144,7 +124,7 @@ export async function POST(req: Request) {
     const marketData = await getDetailedMarketData(portfolio || []);
     const news = await getCryptoNews();
     
-    // Calculate portfolio performance
+    // Calculate portfolio performance with detailed metrics
     const portfolioAnalysis = analyzePortfolio(portfolio, marketData);
     
     // Generate the weekly report
@@ -156,7 +136,7 @@ export async function POST(req: Request) {
       nextReportDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     });
     
-  } catch {
+  } catch (error) {
     console.error("Weekly report error:", error);
     return NextResponse.json({ 
       error: "Failed to generate weekly report",
@@ -363,46 +343,54 @@ Worst Performer: ${analysis.worstPerformer?.symbol} (${analysis.worstPerformer?.
 MARKET CONTEXT:
 ${Object.entries(news).map(([key, value]) => `${key}: ${value}`).join('\n')}
 
-Write a conversational, personalized weekly report with these sections:
+Write a deeply personalized, conversational weekly report that:
 
 1. 🌟 PERSONAL GREETING (2-3 sentences)
-   - Address them by name, reference their astrological configuration
-   - Acknowledge how their ${profile.sunSign} nature might be feeling about the market
+   - Address ${profile.name} by name, acknowledge their ${profile.sunSign} nature
+   - Reference their specific P&L this week (${analysis.totalPnLPercent > 0 ? 'gains' : 'challenges'})
+   - Connect to their stated mission: "${profile.intention}"
 
-2. 📊 YOUR PORTFOLIO THIS WEEK (3-4 sentences)
-   - Specific performance of THEIR holdings
-   - What moved and why (relate to market events)
-   - How this aligns with their ${profile.intention}
+2. 📊 PORTFOLIO PERFORMANCE DEEP DIVE (4-5 sentences)
+   - Analyze EACH of their holdings' performance with specific numbers
+   - Explain WHY each asset moved (connect to market events)
+   - Reference their ${profile.riskTolerance} risk tolerance in context
+   - Note if performance aligns with their ${profile.timeHorizon} timeline
 
-3. 🔮 ASTROLOGICAL MARKET TIMING (2-3 sentences)
-   - How current planetary positions affect their ${profile.sunSign}/${profile.moonSign} combination
-   - Specific dates/periods that are favorable or challenging
+3. 🔮 ASTROLOGICAL MARKET TIMING (3-4 sentences)
+   - How their ${profile.sunSign} sun and ${profile.moonSign} moon configuration affects trading this week
+   - Specific favorable/challenging dates based on their chart
+   - How their ${profile.elemental?.element} element influences market approach
+   - Connect to their challenge: "${profile.biggestChallenge}"
 
-4. 💎 HOLDINGS DEEP DIVE
-   - For each holding, provide 1-2 sentences of unique insight
-   - Connect the asset's behavior to their personal goals
-   - Note if any holding needs attention based on their risk tolerance
+4. 💎 STRATEGIC INSIGHTS FOR EACH HOLDING
+   - For EACH position, provide 2-3 sentences of unique analysis
+   - Reference exact P&L, price levels, and technical setup
+   - Suggest specific actions based on their ${profile.experience} experience
+   - Note correlation risks between holdings
 
-5. 🌍 MACRO PERSPECTIVE (2-3 sentences)
-   - How global events affect their specific holdings
-   - What this means for someone with ${profile.experience} experience
+5. 🌍 MACRO & NEWS IMPACT (3-4 sentences)
+   - How specific news affects THEIR holdings
+   - What macro trends mean for their portfolio composition
+   - Opportunities/risks specific to their assets
 
-6. 🎯 WEEK AHEAD OUTLOOK (2-3 sentences)
-   - What to watch for based on their portfolio
-   - How their ${profile.elemental?.element} element suggests approaching the week
+6. 🎯 ACTIONABLE WEEK AHEAD (4-5 sentences)
+   - Specific price levels to watch for THEIR holdings
+   - Rebalancing suggestions based on concentration risk
+   - Entry/exit points aligned with their goals
+   - How to navigate based on their ${profile.elemental?.element} element
 
-Keep the tone conversational, insightful, and specifically tailored to THEIR situation. Use emojis sparingly but effectively. Make it feel like a letter from a knowledgeable friend who deeply understands both their portfolio and their personal journey.`;
+Keep it conversational but data-rich. Reference exact numbers, percentages, and price levels. Make every sentence relevant to THEIR specific situation, holdings, and goals. This should feel like a report from a friend who deeply understands both their portfolio and their personal journey.`;
 
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.8,
-      max_tokens: 1500,
+      max_tokens: 2000,
     });
     
     return completion.choices[0]?.message?.content || generateFallbackReport();
-  } catch {
+  } catch (error) {
     console.error('OpenAI error:', error);
     return generateFallbackReport();
   }

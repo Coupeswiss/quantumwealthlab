@@ -23,7 +23,7 @@ export default function Home() {
       });
       const json = await res.json();
       setMessage(res.ok ? "Profile saved." : json?.error || "Something went wrong");
-            } catch {
+    } catch (err) {
       setMessage("Network error");
     } finally {
       setSaving(false);

@@ -1,7 +1,7 @@
 // Astrological Insights Generator for Personalized Wealth Guidance
 // This module generates accurate, personalized insights based on astrological profiles
 
-import { ZODIAC_DATABASE } from './astrology-database';
+import { ZODIAC_DATABASE, PLANETARY_INFLUENCES, HOUSE_MEANINGS } from './astrology-database';
 
 export interface AstrologicalInsight {
   type: 'daily' | 'weekly' | 'monthly' | 'transit' | 'wealth' | 'relationship';
