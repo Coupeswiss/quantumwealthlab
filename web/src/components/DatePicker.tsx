@@ -196,8 +196,8 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
 
       {isOpen && portalEl && createPortal(
         <div
-          className="z-[1000] p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
-          style={{ position: "fixed", top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width }}
+          className="p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
+          style={{ position: "fixed", top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width, zIndex: 2147483647 }}
         >
           {/* Month/Year Navigation */}
           <div className="flex items-center justify-between mb-4">
