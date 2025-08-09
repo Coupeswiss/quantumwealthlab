@@ -155,7 +155,6 @@ function calculatePortfolioStats(holdings: any[], marketData: any) {
   
   // Calculate weekly change (simulated for now)
   const weeklyChange = holdings.reduce((sum, h) => {
-    const price = marketData[h.symbol]?.price || 0;
     const change = marketData[h.symbol]?.change24h || 0;
     const weekChange = change * 7; // Simplified
     return sum + (h.value || 0) * (weekChange / 100);

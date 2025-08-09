@@ -18,7 +18,7 @@ export default function InsightsPage() {
   useEffect(() => {
     loadUserData();
     checkWeeklyReport();
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadUserData = () => {
     // Load profile

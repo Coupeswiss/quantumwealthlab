@@ -52,7 +52,7 @@ interface ProfileState {
 
 export const useProfileStore = create<ProfileState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       profile: null,
       updateProfile: (newProfile) => 
         set((state) => ({ 

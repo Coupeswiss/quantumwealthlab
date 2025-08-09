@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { User, Calendar, Target, Shield, Brain, Star, Save, Check } from "lucide-react";
+import { User, Target, Brain, Star, Save, Check } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 

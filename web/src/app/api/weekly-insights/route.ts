@@ -81,7 +81,7 @@ async function getDetailedMarketData(holdings: any[]) {
     });
     
     return marketData;
-  } catch (error) {
+  } catch {
     console.error('Market data error:', error);
     // Fallback to basic prices
     try {
@@ -118,7 +118,7 @@ async function getCryptoNews() {
       technical: "BTC tests 100k resistance, major support at 90k holding strong",
       defi: "Ethereum L2s seeing massive growth, TVL reaches new highs"
     };
-  } catch (error) {
+  } catch {
     return {
       macro: "Markets await Fed decision",
       technical: "Key resistance levels being tested"
@@ -156,7 +156,7 @@ export async function POST(req: Request) {
       nextReportDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
     });
     
-  } catch (error) {
+  } catch {
     console.error("Weekly report error:", error);
     return NextResponse.json({ 
       error: "Failed to generate weekly report",
@@ -402,7 +402,7 @@ Keep the tone conversational, insightful, and specifically tailored to THEIR sit
     });
     
     return completion.choices[0]?.message?.content || generateFallbackReport();
-  } catch (error) {
+  } catch {
     console.error('OpenAI error:', error);
     return generateFallbackReport();
   }

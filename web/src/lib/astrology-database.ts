@@ -614,7 +614,7 @@ export function generateWealthArchetype(sun: string, moon: string, rising: strin
   
   const cardinalCount = modalities.filter(m => m === 'Cardinal').length;
   const fixedCount = modalities.filter(m => m === 'Fixed').length;
-  const mutableCount = modalities.filter(m => m === 'Mutable').length;
+  // const mutableCount = modalities.filter(m => m === 'Mutable').length; // Reserved for future use
 
   // Generate archetype based on elemental and modal dominance
   let archetype = '';
