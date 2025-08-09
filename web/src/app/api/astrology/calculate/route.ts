@@ -75,13 +75,13 @@ function calculateMoonSign(birthDate: Date, birthTime?: string): string {
   return approximateMoonSign(birthDate);
 }
 
-// Enhanced rising sign calculation with latitude consideration
+// More accurate rising sign calculation using sun position as reference
 function calculateRisingSign(birthDate: Date, birthTime?: string, birthLat?: number): string {
   if (!birthTime) return "Unknown";
   
-  const signs = ZODIAC_SIGNS_ORDER as unknown as string[]; // Use ordered array
+  const signs = ZODIAC_SIGNS_ORDER as unknown as string[];
   
-  // Parse birth time with format handling
+  // Parse birth time
   let hours = 0, minutes = 0;
   
   if (birthTime.includes(':')) {
@@ -89,42 +89,55 @@ function calculateRisingSign(birthDate: Date, birthTime?: string, birthLat?: num
   } else if (birthTime.includes('.')) {
     [hours, minutes] = birthTime.split('.').map(Number);
   } else if (birthTime.length === 4) {
-    // HHMM format
     hours = parseInt(birthTime.substring(0, 2));
     minutes = parseInt(birthTime.substring(2, 4));
   } else if (birthTime.length <= 2) {
-    // Just hours
     hours = parseInt(birthTime);
   }
   
-  // Validate time values
   if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
     console.warn('Invalid birth time for rising sign calculation');
     return "Unknown";
   }
   
-  const decimalTime = hours + minutes / 60;
+  // Get sun sign as reference point
+  const sunSign = calculateSunSign(birthDate);
+  const sunIndex = signs.indexOf(sunSign);
   
-  // Calculate local sidereal time (simplified)
-  // Rising sign changes approximately every 2 hours
-  const dayOfYear = Math.floor((birthDate.getTime() - new Date(birthDate.getFullYear(), 0, 0).getTime()) / 86400000);
+  // Calculate day of year for seasonal adjustment
+  const start = new Date(birthDate.getFullYear(), 0, 0);
+  const dayOfYear = Math.floor((birthDate.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
   
-  // Factor in latitude if available (affects house cusps)
-  let latitudeFactor = 0;
-  if (birthLat !== undefined && birthLat !== null) {
-    // Northern latitudes have longer ascension times for certain signs
-    latitudeFactor = Math.abs(birthLat) / 90; // Normalize to 0-1
+  // Approximate sunrise time based on day of year (varies 5-7 AM)
+  const sunriseHour = 6 + Math.sin((dayOfYear - 81) * 2 * Math.PI / 365) * 1;
+  
+  // Hours since sunrise (ascendant = sun sign at sunrise)
+  let hoursSinceSunrise = hours + (minutes / 60) - sunriseHour;
+  if (hoursSinceSunrise < 0) hoursSinceSunrise += 24;
+  
+  // Each sign rises for approximately 2 hours
+  const signOffset = Math.round(hoursSinceSunrise / 2);
+  
+  // Apply latitude correction if available
+  let latCorrection = 0;
+  if (birthLat !== null && birthLat !== undefined) {
+    // At extreme latitudes, signs rise at different rates
+    const absLat = Math.abs(birthLat);
+    if (absLat > 60) {
+      // Arctic/Antarctic regions have extreme variations
+      latCorrection = Math.round((absLat - 60) / 15);
+    }
   }
   
-  // Calculate ascendant position
-  // Each sign rises for approximately 2 hours, but this varies by latitude
-  const baseIndex = Math.floor(decimalTime / 2);
+  // Calculate rising sign index
+  let risingIndex = (sunIndex + signOffset + latCorrection) % 12;
+  if (risingIndex < 0) risingIndex += 12;
   
-  // Adjust for time of year (seasonal variation)
-  const seasonalAdjustment = Math.floor((dayOfYear / 365) * 4) % 4;
-  
-  // Combine factors for final calculation
-  const risingIndex = (baseIndex + seasonalAdjustment + Math.floor(latitudeFactor * 2)) % 12;
+  console.log('Rising calculation:', { 
+    sunSign, sunIndex, hours, minutes, 
+    hoursSinceSunrise, signOffset, 
+    rising: signs[risingIndex] 
+  });
   
   return signs[risingIndex];
 }
