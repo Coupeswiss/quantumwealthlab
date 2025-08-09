@@ -18,6 +18,12 @@ import {
   getSaturnSignFromEphemeris,
   approximateMoonSign 
 } from "@/lib/ephemeris-data";
+import { 
+  isProkeralaConfigured, 
+  getProkeralaBirthChart, 
+  getProkeralaPlanetPositions,
+  getProkeralaPanchang 
+} from "@/lib/prokerala-api";
 
 // Accurate zodiac sign calculation based on birth date
 function calculateSunSign(birthDate: Date): string {
@@ -267,9 +273,46 @@ export async function POST(req: Request) {
       }
     }
     
-    const sunSign = calculateSunSign(date);
-    const moonSign = calculateMoonSign(date, birthTime);
-    const risingSign = calculateRisingSign(date, birthTime, latitude);
+    // Try to use Prokerala API for accurate calculations
+    let sunSign: string;
+    let moonSign: string;
+    let risingSign: string;
+    let prokeralaData: any = null;
+    
+    if (isProkeralaConfigured() && latitude && longitude && birthTime) {
+      try {
+        // Format datetime for Prokerala API (ISO 8601 format)
+        const hours = birthTime.includes(':') ? birthTime.split(':')[0] : '12';
+        const minutes = birthTime.includes(':') ? birthTime.split(':')[1] : '00';
+        const isoDateTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00+05:30`;
+        
+        // Get accurate data from Prokerala
+        const [birthChart, planetPositions] = await Promise.all([
+          getProkeralaBirthChart(isoDateTime, latitude, longitude),
+          getProkeralaPlanetPositions(isoDateTime, latitude, longitude)
+        ]);
+        
+        prokeralaData = { birthChart, planetPositions };
+        
+        // Extract signs from Prokerala response
+        sunSign = birthChart.data?.sun_sign || calculateSunSign(date);
+        moonSign = birthChart.data?.moon_sign || calculateMoonSign(date, birthTime);
+        risingSign = birthChart.data?.rising_sign || birthChart.data?.ascendant || calculateRisingSign(date, birthTime, latitude);
+        
+        console.log('Using Prokerala API for accurate calculations');
+      } catch (error) {
+        console.error('Prokerala API failed, falling back to local calculations:', error);
+        // Fall back to local calculations
+        sunSign = calculateSunSign(date);
+        moonSign = calculateMoonSign(date, birthTime);
+        risingSign = calculateRisingSign(date, birthTime, latitude);
+      }
+    } else {
+      // Use local calculations if Prokerala is not configured
+      sunSign = calculateSunSign(date);
+      moonSign = calculateMoonSign(date, birthTime);
+      risingSign = calculateRisingSign(date, birthTime, latitude);
+    }
     
     // Get other planetary positions from ephemeris
     const mercurySign = getMercurySignFromEphemeris(date) || getAdjacentSign(sunSign, -1);
@@ -384,6 +427,12 @@ export async function POST(req: Request) {
       sunSign,
       moonSign,
       risingSign,
+      // Include Prokerala data if available for more accuracy
+      prokeralaData: prokeralaData ? {
+        available: true,
+        birthChart: prokeralaData.birthChart?.data,
+        planetPositions: prokeralaData.planetPositions?.data
+      } : { available: false },
       elemental: {
         dominant: getDominantElement(profile.elements),
         balance: profile.elements,
