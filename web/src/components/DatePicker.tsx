@@ -1,6 +1,5 @@
 "use client";
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
+import { useState, useRef, useEffect } from "react";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface DatePickerProps {
@@ -16,9 +15,6 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
-  const [popoverStyle, setPopoverStyle] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
 
   // Parse the value prop (YYYY-MM-DD format)
   useEffect(() => {
@@ -33,47 +29,22 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
 
   // Close on outside click
   useEffect(() => {
+    if (!isOpen) return;
+    
     function handleClickOutside(event: MouseEvent) {
-      if (
-        containerRef.current &&
-        !containerRef.current.contains(event.target as Node) &&
-        !(buttonRef.current && buttonRef.current.contains(event.target as Node))
-      ) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
         setIsOpen(false);
       }
     }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  // Setup portal root on client only
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setPortalEl(document.body);
-    }
-  }, []);
-
-  // Position popover
-  const updatePosition = () => {
-    if (!buttonRef.current) return;
-    const rect = buttonRef.current.getBoundingClientRect();
-    setPopoverStyle({ top: rect.bottom + 8, left: rect.left, width: rect.width });
-  };
-
-  useLayoutEffect(() => {
-    if (isOpen) {
-      updatePosition();
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    const onScrollOrResize = () => updatePosition();
-    window.addEventListener("scroll", onScrollOrResize, true);
-    window.addEventListener("resize", onScrollOrResize);
+    
+    // Delay to avoid closing immediately on open
+    const timer = setTimeout(() => {
+      document.addEventListener("mousedown", handleClickOutside);
+    }, 0);
+    
     return () => {
-      window.removeEventListener("scroll", onScrollOrResize, true);
-      window.removeEventListener("resize", onScrollOrResize);
+      clearTimeout(timer);
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [isOpen]);
 
@@ -178,7 +149,6 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
       )}
       
       <button
-        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`
@@ -194,10 +164,10 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
         <Calendar size={16} className="text-cyan-400" />
       </button>
 
-      {isOpen && portalEl && createPortal(
-        <div
-          className="p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
-          style={{ position: "fixed", top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width, zIndex: 2147483647 }}
+      {isOpen && (
+        <div 
+          className="absolute z-[9999] mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
+          style={{ minWidth: '320px' }}
         >
           {/* Month/Year Navigation */}
           <div className="flex items-center justify-between mb-4">
@@ -216,7 +186,8 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
               <select
                 value={currentMonth.getFullYear()}
                 onChange={handleYearChange}
-                className="bg-transparent border border-white/10 rounded px-2 py-1 text-sm text-white outline-none focus:border-cyan-400"
+                className="bg-[#0a1628] border border-white/10 rounded px-2 py-1 text-sm text-white outline-none focus:border-cyan-400"
+                style={{ appearance: 'none', paddingRight: '20px' }}
               >
                 {years.map(year => (
                   <option key={year} value={year} className="bg-[#0a1628]">
@@ -245,7 +216,7 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
           </div>
 
           {/* Calendar Grid */}
-          <div className="grid grid-cols-7 gap-1 min-w-[280px]">
+          <div className="grid grid-cols-7 gap-1">
             {renderCalendar()}
           </div>
 
@@ -265,8 +236,7 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
               Today
             </button>
           </div>
-        </div>,
-        portalEl
+        </div>
       )}
     </div>
   );
