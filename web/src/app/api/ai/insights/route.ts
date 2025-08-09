@@ -168,7 +168,7 @@ export async function POST(req: Request) {
     const profile = (await req.json().catch(() => ({}))).profile || {};
     
     const fallbackSunData = profile?.sunSign ? ZODIAC_DATABASE[profile.sunSign] : null;
-    const fallbackInsights = profile?.sunSign ? generateComprehensiveInsights(profile, marketData) : null;
+    const fallbackInsights = profile?.sunSign ? generateComprehensiveInsights(profile, {}) : null;
     
     return NextResponse.json({
       daily: fallbackInsights?.daily?.[0]?.message || `${profile.name || 'Seeker'}, your ${profile.sunSign || 'cosmic'} ${fallbackSunData?.element || ''} energy attracts abundance. ${fallbackSunData?.personality?.motivation || 'You are exactly where you need to be.'}`,

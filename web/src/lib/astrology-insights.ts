@@ -390,7 +390,7 @@ function getWealthBuildingMessage(sunData: any, riskTolerance: string): string {
 }
 
 function isRiskAligned(naturalRisk: string, statedRisk: string): boolean {
-  const riskLevels = {
+  const riskLevels: { [key: string]: number } = {
     'Very High': 5,
     'High': 4,
     'Moderate to High': 3.5,
@@ -652,7 +652,7 @@ function generateDayHighlight(sunData: any, moonData: any, day: string, index: n
     ]
   };
 
-  const elementModifier = {
+  const elementModifier: { [key: string]: string } = {
     Fire: 'with bold initiative',
     Earth: 'with practical steps',
     Air: 'through communication',
@@ -670,7 +670,7 @@ function determineLuckyDays(element: string, luckyNumber: number): string[] {
   const luckyDays: string[] = [];
   
   // Element-based lucky days
-  const elementDays = {
+  const elementDays: { [key: string]: string[] } = {
     Fire: ['Tuesday', 'Thursday', 'Sunday'],
     Earth: ['Wednesday', 'Friday', 'Saturday'],
     Air: ['Monday', 'Wednesday', 'Friday'],
