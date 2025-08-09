@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import { ArrowRight, Sparkles, User, Calendar, MapPin } from "lucide-react";
+import DatePicker from "@/components/DatePicker";
+import TimePicker from "@/components/TimePicker";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
@@ -189,22 +191,20 @@ export default function Onboarding() {
             <div className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-sm text-[var(--muted)] block mb-1">Birth date</label>
-                  <input 
-                    type="date"
+                  <DatePicker
+                    label="Birth date"
                     value={formData.birthDate}
-                    onChange={(e) => updateData("birthDate", e.target.value)}
-                    className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--accent)]" 
+                    onChange={(date) => updateData("birthDate", date)}
+                    placeholder="Select your birth date"
                   />
                 </div>
                 
                 <div>
-                  <label className="text-sm text-[var(--muted)] block mb-1">Birth time (optional)</label>
-                  <input 
-                    type="time"
+                  <TimePicker
+                    label="Birth time (optional)"
                     value={formData.birthTime}
-                    onChange={(e) => updateData("birthTime", e.target.value)}
-                    className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-[var(--accent)]" 
+                    onChange={(time) => updateData("birthTime", time)}
+                    placeholder="Select birth time"
                   />
                 </div>
               </div>

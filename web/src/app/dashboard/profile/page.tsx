@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import { User, Calendar, Target, Shield, Brain, Star } from "lucide-react";
+import DatePicker from "@/components/DatePicker";
+import TimePicker from "@/components/TimePicker";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>({});
@@ -117,21 +119,19 @@ export default function ProfilePage() {
         </div>
         <div className="grid md:grid-cols-3 gap-4 mb-4">
           <div>
-            <label className="text-xs text-[var(--muted)]">Birth Date</label>
-            <input 
-              type="date"
-              value={profile.birthDate || ""} 
-              onChange={(e) => updateProfile({ birthDate: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+            <DatePicker
+              label="Birth Date"
+              value={profile.birthDate || ""}
+              onChange={(date) => updateProfile({ birthDate: date })}
+              placeholder="Select birth date"
             />
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Birth Time</label>
-            <input 
-              type="time"
-              value={profile.birthTime || ""} 
-              onChange={(e) => updateProfile({ birthTime: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+            <TimePicker
+              label="Birth Time"
+              value={profile.birthTime || ""}
+              onChange={(time) => updateProfile({ birthTime: time })}
+              placeholder="Select birth time"
             />
           </div>
           <div>

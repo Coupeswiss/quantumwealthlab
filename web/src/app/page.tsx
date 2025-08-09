@@ -2,6 +2,8 @@
 import { useState } from "react";
 import Image from "next/image";
 import { ArrowRight, Sparkles } from "lucide-react";
+import DatePicker from "@/components/DatePicker";
+import TimePicker from "@/components/TimePicker";
 
 export default function Home() {
   const [saving, setSaving] = useState(false);
@@ -161,16 +163,48 @@ export default function Home() {
                 placeholder="Birth place" 
                 className="bg-[#0a1628]/50 border border-cyan-500/30 rounded-lg px-4 py-3 text-sm outline-none focus:border-cyan-400 focus:shadow-[0_0_20px_rgba(0,212,255,0.2)] transition-all placeholder-[var(--muted)]" 
               />
-              <input 
-                name="birthDate" 
-                type="date" 
-                className="bg-[#0a1628]/50 border border-cyan-500/30 rounded-lg px-4 py-3 text-sm outline-none focus:border-cyan-400 focus:shadow-[0_0_20px_rgba(0,212,255,0.2)] transition-all placeholder-[var(--muted)]" 
-              />
-              <input 
-                name="birthTime" 
-                type="time" 
-                className="bg-[#0a1628]/50 border border-cyan-500/30 rounded-lg px-4 py-3 text-sm outline-none focus:border-cyan-400 focus:shadow-[0_0_20px_rgba(0,212,255,0.2)] transition-all placeholder-[var(--muted)]" 
-              />
+              <div>
+                <DatePicker
+                  value=""
+                  onChange={(date) => {
+                    const input = document.querySelector('input[name="birthDate"]') as HTMLInputElement;
+                    if (!input) {
+                      const hiddenInput = document.createElement('input');
+                      hiddenInput.type = 'hidden';
+                      hiddenInput.name = 'birthDate';
+                      hiddenInput.value = date;
+                      const form = document.querySelector('form');
+                      form?.appendChild(hiddenInput);
+                    } else {
+                      input.value = date;
+                    }
+                  }}
+                  placeholder="Select birth date"
+                  className="bg-[#0a1628]/50 border-cyan-500/30 focus:shadow-[0_0_20px_rgba(0,212,255,0.2)]"
+                />
+                <input type="hidden" name="birthDate" />
+              </div>
+              <div>
+                <TimePicker
+                  value=""
+                  onChange={(time) => {
+                    const input = document.querySelector('input[name="birthTime"]') as HTMLInputElement;
+                    if (!input) {
+                      const hiddenInput = document.createElement('input');
+                      hiddenInput.type = 'hidden';
+                      hiddenInput.name = 'birthTime';
+                      hiddenInput.value = time;
+                      const form = document.querySelector('form');
+                      form?.appendChild(hiddenInput);
+                    } else {
+                      input.value = time;
+                    }
+                  }}
+                  placeholder="Select birth time"
+                  className="bg-[#0a1628]/50 border-cyan-500/30 focus:shadow-[0_0_20px_rgba(0,212,255,0.2)]"
+                />
+                <input type="hidden" name="birthTime" />
+              </div>
               <button type="submit" disabled={saving} className="qwl-glow rounded-lg px-6 py-3 text-sm font-bold hover:scale-105 transition-transform">
                 {saving ? "Saving..." : "Initialize"}
               </button>
