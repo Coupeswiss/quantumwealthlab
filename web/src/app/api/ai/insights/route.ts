@@ -140,14 +140,32 @@ export async function POST(req: Request) {
     
     const insights = JSON.parse(content);
     
+    // Ensure all values are strings (not nested objects)
+    const sanitizedInsights: any = {};
+    for (const [key, value] of Object.entries(insights)) {
+      if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+        // If it's an object, convert to string or extract the main content
+        if ('observation' in (value as any) && 'specificInvestments' in (value as any)) {
+          // Handle the specific error case
+          sanitizedInsights[key] = `${(value as any).observation} Consider: ${(value as any).specificInvestments?.join(', ') || 'diversified portfolio'}`;
+        } else {
+          sanitizedInsights[key] = JSON.stringify(value);
+        }
+      } else if (typeof value === 'string') {
+        sanitizedInsights[key] = value;
+      } else {
+        sanitizedInsights[key] = String(value || '');
+      }
+    }
+    
     // Store this insight in the user's knowledge base
-    if (insights.quantumField) {
+    if (sanitizedInsights.quantumField) {
       // In production, this would be saved to database
-      console.log(`Storing quantum insight for ${userContext.name}:`, insights.quantumField);
+      console.log(`Storing quantum insight for ${userContext.name}:`, sanitizedInsights.quantumField);
     }
     
     return NextResponse.json({
-      ...insights,
+      ...sanitizedInsights,
       userArchetype: userContext.archetype,
       cosmicAlignment: calculateCosmicAlignment(userContext),
       elementalBalance: {

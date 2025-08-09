@@ -280,15 +280,21 @@ export default function DashboardHome() {
             <div className="space-y-4">
               <div className="p-4 rounded-lg bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30">
                 <div className="text-xs font-bold text-cyan-400 mb-2">DAILY ENERGY</div>
-                <p className="text-sm leading-relaxed text-white">{insights.daily}</p>
+                <p className="text-sm leading-relaxed text-white">
+                  {typeof insights.daily === 'string' ? insights.daily : JSON.stringify(insights.daily)}
+                </p>
               </div>
               <div className="p-4 rounded-lg bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30">
                 <div className="text-xs font-bold text-blue-400 mb-2">MARKET PULSE</div>
-                <p className="text-sm leading-relaxed text-white">{insights.market}</p>
+                <p className="text-sm leading-relaxed text-white">
+                  {typeof insights.market === 'string' ? insights.market : JSON.stringify(insights.market)}
+                </p>
               </div>
               <div className="p-4 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30">
                 <div className="text-xs font-bold text-purple-400 mb-2">PERSONAL GUIDANCE</div>
-                <p className="text-sm leading-relaxed text-white">{insights.personal}</p>
+                <p className="text-sm leading-relaxed text-white">
+                  {typeof insights.personal === 'string' ? insights.personal : JSON.stringify(insights.personal)}
+                </p>
               </div>
             </div>
           ) : null}
