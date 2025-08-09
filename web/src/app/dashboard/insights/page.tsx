@@ -21,14 +21,31 @@ export default function InsightsPage() {
   }, []);
 
   const loadUserData = () => {
+    // Load profile
     const savedProfile = localStorage.getItem('userProfile');
-    const savedPortfolio = localStorage.getItem('portfolio');
-    
     if (savedProfile) {
       setProfile(JSON.parse(savedProfile));
     }
-    if (savedPortfolio) {
-      setPortfolio(JSON.parse(savedPortfolio));
+    
+    // Load portfolio from the correct storage key
+    const walletData = localStorage.getItem('qwl-wallets');
+    if (walletData) {
+      try {
+        const parsed = JSON.parse(walletData);
+        const wallets = parsed.state?.wallets || [];
+        const formattedPortfolio = wallets.map((w: any) => ({
+          id: w.id || Date.now().toString(),
+          blockchain: w.chain || "Ethereum",
+          asset: w.name || w.symbol || "Unknown",
+          symbol: w.symbol || "UNK",
+          amount: w.amount || w.balance || 0,
+          purchasePrice: w.purchasePrice,
+          value: w.value || 0
+        }));
+        setPortfolio(formattedPortfolio);
+      } catch (error) {
+        console.error('Error parsing portfolio:', error);
+      }
     }
   };
 

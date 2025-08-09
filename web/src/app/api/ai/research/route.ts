@@ -119,17 +119,69 @@ export async function POST(req: Request) {
       webResults = await searchWeb(question);
     }
     
+    // Calculate real-time portfolio metrics
+    let portfolioMetrics: any = {
+      totalValue: 0,
+      holdings: [],
+      weights: {}
+    };
+    
+    if (portfolio && portfolio.length > 0) {
+      for (const holding of portfolio) {
+        const symbol = holding.symbol?.toUpperCase();
+        const data = coinData[symbol.toLowerCase()] || coinData[symbol];
+        
+        if (data) {
+          const value = holding.amount * data.price;
+          portfolioMetrics.totalValue += value;
+          portfolioMetrics.holdings.push({
+            symbol,
+            amount: holding.amount,
+            value,
+            price: data.price,
+            change24h: data.priceChange24h,
+            change7d: data.priceChange7d
+          });
+        }
+      }
+      
+      // Calculate weights
+      portfolioMetrics.holdings.forEach((h: any) => {
+        portfolioMetrics.weights[h.symbol] = ((h.value / portfolioMetrics.totalValue) * 100).toFixed(1);
+      });
+    }
+    
     // Build comprehensive context
-    const systemPrompt = `You are a highly knowledgeable crypto research assistant with real-time market access.
+    const systemPrompt = `You are a highly knowledgeable crypto research assistant with real-time market access and deep understanding of the user's portfolio.
 
-USER PROFILE:
+COMPLETE USER PROFILE:
 - Name: ${profile?.name || "User"}
-- Astrology: ${profile?.sunSign || "Unknown"} Sun, ${profile?.moonSign || "Unknown"} Moon, ${profile?.risingSign || "Unknown"} Rising
-- Investment Style: ${profile?.experience || "Unknown"} experience, ${profile?.riskTolerance || "Unknown"} risk
-- Goals: "${profile?.intention || "Not specified"}"
+- Birth Details: ${profile?.birthDate} at ${profile?.birthTime} in ${profile?.birthPlace}
+- Astrological Configuration: 
+  * ${profile?.sunSign || "Unknown"} Sun (core identity & investment style: ${profile?.elemental?.qualities?.wealthStyle})
+  * ${profile?.moonSign || "Unknown"} Moon (emotional patterns in trading)
+  * ${profile?.risingSign || "Unknown"} Rising (market approach & first reactions)
+  * Dominant Element: ${profile?.elemental?.element} (${profile?.elemental?.balance ? `Fire:${profile?.elemental.balance.fire} Earth:${profile?.elemental.balance.earth} Air:${profile?.elemental.balance.air} Water:${profile?.elemental.balance.water}` : ""})
+- Investment Profile:
+  * Experience: ${profile?.experience || "Unknown"}
+  * Risk Tolerance: ${profile?.riskTolerance || "Unknown"}
+  * Time Horizon: ${profile?.timeHorizon || "Unknown"}
+  * Portfolio Size: ${profile?.portfolioSize || "Unknown"}
+- Personal Context:
+  * Primary Goal: "${profile?.intention || "Not specified"}"
+  * Main Challenge: "${profile?.biggestChallenge || "Not specified"}"
+  * Ideal Outcome: "${profile?.idealOutcome || "Not specified"}"
 
-CURRENT PORTFOLIO:
-${portfolio?.map((h: any) => `- ${h.symbol}: ${h.amount} units (approx $${h.value || 'Unknown'})`).join('\n') || "No holdings"}
+REAL-TIME PORTFOLIO ANALYSIS:
+Total Value: $${portfolioMetrics.totalValue.toFixed(2)}
+Number of Holdings: ${portfolioMetrics.holdings.length}
+
+${portfolioMetrics.holdings.map((h: any) => `${h.symbol}:
+  - Amount: ${h.amount} units
+  - Value: $${h.value.toFixed(2)} (${portfolioMetrics.weights[h.symbol]}% of portfolio)
+  - Current Price: $${h.price.toFixed(h.price > 100 ? 0 : 2)}
+  - 24h Change: ${h.change24h > 0 ? '+' : ''}${h.change24h?.toFixed(2)}%
+  - 7d Change: ${h.change7d > 0 ? '+' : ''}${h.change7d?.toFixed(2)}%`).join('\n\n')}
 
 ${Object.keys(coinData).length > 0 ? `
 DETAILED COIN DATA:

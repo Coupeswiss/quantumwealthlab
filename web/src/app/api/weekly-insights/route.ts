@@ -16,13 +16,38 @@ function shouldGenerateNewReport(lastGenerated: string | null): boolean {
   return daysSince >= 7;
 }
 
-// Fetch detailed market data for each holding
+// Fetch detailed market data for each holding with real-time prices
 async function getDetailedMarketData(holdings: any[]) {
-  const symbols = holdings.map(h => h.symbol.toLowerCase());
+  if (!holdings || holdings.length === 0) return {};
   
   try {
-    // Fetch from CoinGecko for comprehensive data
-    const ids = symbols.join(',');
+    // Map common symbols to CoinGecko IDs
+    const symbolToId: Record<string, string> = {
+      'BTC': 'bitcoin',
+      'ETH': 'ethereum',
+      'BNB': 'binancecoin',
+      'SOL': 'solana',
+      'ADA': 'cardano',
+      'AVAX': 'avalanche-2',
+      'DOT': 'polkadot',
+      'MATIC': 'polygon',
+      'LINK': 'chainlink',
+      'UNI': 'uniswap',
+      'ATOM': 'cosmos',
+      'ARB': 'arbitrum',
+      'OP': 'optimism',
+      'USDT': 'tether',
+      'USDC': 'usd-coin'
+    };
+    
+    const ids = holdings.map(h => {
+      const symbol = h.symbol.toUpperCase();
+      return symbolToId[symbol] || symbol.toLowerCase();
+    }).filter(Boolean).join(',');
+    
+    if (!ids) return {};
+    
+    // Fetch comprehensive data from CoinGecko
     const response = await fetch(
       `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc&per_page=100&page=1&sparkline=true&price_change_percentage=1h,24h,7d,30d`,
       { headers: process.env.COINGECKO_API_KEY ? { 'x-cg-pro-api-key': process.env.COINGECKO_API_KEY } : {} }
@@ -35,16 +60,22 @@ async function getDetailedMarketData(holdings: any[]) {
     
     data.forEach((coin: any) => {
       marketData[coin.symbol.toUpperCase()] = {
+        name: coin.name,
         price: coin.current_price,
-        change24h: coin.price_change_percentage_24h,
-        change7d: coin.price_change_percentage_7d,
-        change30d: coin.price_change_percentage_30d,
+        change1h: coin.price_change_percentage_1h_in_currency || 0,
+        change24h: coin.price_change_percentage_24h || 0,
+        change7d: coin.price_change_percentage_7d_in_currency || 0,
+        change30d: coin.price_change_percentage_30d_in_currency || 0,
         marketCap: coin.market_cap,
+        marketCapRank: coin.market_cap_rank,
         volume: coin.total_volume,
         high24h: coin.high_24h,
         low24h: coin.low_24h,
         ath: coin.ath,
         athDate: coin.ath_date,
+        athChangePercent: coin.ath_change_percentage,
+        circulatingSupply: coin.circulating_supply,
+        totalSupply: coin.total_supply,
         sparkline: coin.sparkline_in_7d?.price || []
       };
     });
@@ -52,7 +83,26 @@ async function getDetailedMarketData(holdings: any[]) {
     return marketData;
   } catch (error) {
     console.error('Market data error:', error);
-    return {};
+    // Fallback to basic prices
+    try {
+      const response = await fetch('/api/crypto/prices');
+      const prices = await response.json();
+      const marketData: any = {};
+      
+      holdings.forEach(h => {
+        const symbol = h.symbol.toUpperCase();
+        if (prices[symbol]) {
+          marketData[symbol] = {
+            price: prices[symbol],
+            change24h: prices[`${symbol}_change`] || 0
+          };
+        }
+      });
+      
+      return marketData;
+    } catch {
+      return {};
+    }
   }
 }
 
@@ -119,38 +169,102 @@ function analyzePortfolio(holdings: any[], marketData: any) {
   if (!holdings || holdings.length === 0) {
     return {
       totalValue: 0,
+      totalCost: 0,
+      totalPnL: 0,
+      totalPnLPercent: 0,
+      change24h: 0,
       change7d: 0,
+      change30d: 0,
       bestPerformer: null,
       worstPerformer: null,
+      holdings: [],
       concentration: {},
-      risk: "Not assessed"
+      risk: "Not assessed",
+      dominantAsset: null,
+      correlationRisk: "Unknown"
     };
   }
   
   let totalValue = 0;
+  let totalCost = 0;
+  let totalChange24h = 0;
   let totalChange7d = 0;
-  let best = { symbol: "", change: -Infinity };
-  let worst = { symbol: "", change: Infinity };
+  let totalChange30d = 0;
+  let best = { symbol: "", change: -Infinity, value: 0 };
+  let worst = { symbol: "", change: Infinity, value: 0 };
   const concentration: any = {};
+  const detailedHoldings: any[] = [];
   
   holdings.forEach(holding => {
-    const data = marketData[holding.symbol];
-    if (!data) return;
+    const data = marketData[holding.symbol?.toUpperCase()];
+    if (!data) {
+      detailedHoldings.push({
+        symbol: holding.symbol,
+        amount: holding.amount,
+        value: 0,
+        price: 0,
+        status: "No data available"
+      });
+      return;
+    }
     
     const value = holding.amount * data.price;
+    const cost = holding.purchasePrice ? holding.amount * holding.purchasePrice : value;
+    const pnl = value - cost;
+    const pnlPercent = cost > 0 ? (pnl / cost) * 100 : 0;
+    
     totalValue += value;
+    totalCost += cost;
     
-    const change = data.change7d || 0;
-    totalChange7d += value * (change / 100);
+    // Calculate weighted changes
+    totalChange24h += value * (data.change24h / 100);
+    totalChange7d += value * (data.change7d / 100);
+    totalChange30d += value * (data.change30d / 100);
     
-    if (change > best.change) {
-      best = { symbol: holding.symbol, change };
+    // Track best/worst performers
+    if (data.change7d > best.change) {
+      best = { symbol: holding.symbol, change: data.change7d, value };
     }
-    if (change < worst.change) {
-      worst = { symbol: holding.symbol, change };
+    if (data.change7d < worst.change) {
+      worst = { symbol: holding.symbol, change: data.change7d, value };
     }
     
     concentration[holding.symbol] = value;
+    
+    // Detailed holding info
+    detailedHoldings.push({
+      symbol: holding.symbol,
+      name: data.name,
+      amount: holding.amount,
+      value: value,
+      price: data.price,
+      purchasePrice: holding.purchasePrice,
+      pnl: pnl,
+      pnlPercent: pnlPercent,
+      change1h: data.change1h,
+      change24h: data.change24h,
+      change7d: data.change7d,
+      change30d: data.change30d,
+      marketCapRank: data.marketCapRank,
+      volume24h: data.volume,
+      high24h: data.high24h,
+      low24h: data.low24h,
+      ath: data.ath,
+      athChangePercent: data.athChangePercent,
+      weight: 0 // Will calculate after total
+    });
+  });
+  
+  // Calculate weights and find dominant asset
+  let dominantAsset = null;
+  let maxWeight = 0;
+  
+  detailedHoldings.forEach(h => {
+    h.weight = totalValue > 0 ? (h.value / totalValue) * 100 : 0;
+    if (h.weight > maxWeight) {
+      maxWeight = h.weight;
+      dominantAsset = { symbol: h.symbol, weight: h.weight, value: h.value };
+    }
   });
   
   // Calculate concentration percentages
@@ -158,13 +272,33 @@ function analyzePortfolio(holdings: any[], marketData: any) {
     concentration[symbol] = ((concentration[symbol] / totalValue) * 100).toFixed(1) + '%';
   });
   
+  // Assess correlation risk
+  const btcWeight = detailedHoldings.find(h => h.symbol === 'BTC')?.weight || 0;
+  const ethWeight = detailedHoldings.find(h => h.symbol === 'ETH')?.weight || 0;
+  const stableWeight = detailedHoldings.filter(h => 
+    ['USDT', 'USDC', 'DAI', 'BUSD'].includes(h.symbol)
+  ).reduce((sum, h) => sum + h.weight, 0);
+  
+  let correlationRisk = "Balanced";
+  if (btcWeight + ethWeight > 70) correlationRisk = "High BTC/ETH Correlation";
+  else if (stableWeight > 30) correlationRisk = "Conservative (High Stables)";
+  else if (maxWeight > 50) correlationRisk = "Concentrated Position Risk";
+  
   return {
     totalValue,
-    change7d: (totalChange7d / totalValue) * 100,
+    totalCost,
+    totalPnL: totalValue - totalCost,
+    totalPnLPercent: totalCost > 0 ? ((totalValue - totalCost) / totalCost) * 100 : 0,
+    change24h: totalValue > 0 ? (totalChange24h / totalValue) * 100 : 0,
+    change7d: totalValue > 0 ? (totalChange7d / totalValue) * 100 : 0,
+    change30d: totalValue > 0 ? (totalChange30d / totalValue) * 100 : 0,
     bestPerformer: best.symbol ? best : null,
     worstPerformer: worst.symbol ? worst : null,
+    holdings: detailedHoldings.sort((a, b) => b.value - a.value),
     concentration,
-    risk: assessRisk(concentration)
+    risk: assessRisk(concentration),
+    dominantAsset,
+    correlationRisk
   };
 }
 
@@ -182,27 +316,49 @@ async function generatePersonalizedReport(profile: any, portfolio: any, marketDa
     return generateFallbackReport();
   }
   
+  // Build detailed holdings description
+  const holdingsDetail = analysis.holdings.map((h: any) => {
+    const emoji = h.change7d > 5 ? '🚀' : h.change7d > 0 ? '📈' : h.change7d < -5 ? '💔' : '📉';
+    const pnlEmoji = h.pnlPercent > 10 ? '💎' : h.pnlPercent > 0 ? '✅' : '⚠️';
+    return `${h.symbol} (${h.weight.toFixed(1)}% of portfolio):
+  - Amount: ${h.amount} @ $${h.price.toFixed(h.price > 100 ? 0 : 2)} = $${h.value.toFixed(0)}
+  - P&L: ${pnlEmoji} ${h.pnlPercent > 0 ? '+' : ''}${h.pnlPercent.toFixed(1)}% ($${h.pnl > 0 ? '+' : ''}${h.pnl.toFixed(0)})
+  - This Week: ${emoji} ${h.change7d > 0 ? '+' : ''}${h.change7d.toFixed(1)}%
+  - 24h Range: $${h.low24h?.toFixed(2)} - $${h.high24h?.toFixed(2)}
+  - ATH Distance: ${h.athChangePercent?.toFixed(0)}% from $${h.ath?.toFixed(2)}`;
+  }).join('\n\n');
+  
   const prompt = `You are writing a personalized weekly crypto portfolio report for ${profile.name || "an investor"}.
 
-THEIR PROFILE:
-- Astrology: ${profile.sunSign} Sun, ${profile.moonSign} Moon, ${profile.risingSign} Rising
-- Element: ${profile.elemental?.element} (influences their energy and approach)
-- Investment Style: ${profile.experience} experience, ${profile.riskTolerance} risk
-- Goals: "${profile.intention}"
-- Challenge: "${profile.biggestChallenge}"
+COMPLETE USER PROFILE:
+- Name: ${profile.name}
+- Astrology: ${profile.sunSign} Sun (${profile.elemental?.qualities?.wealthStyle}), ${profile.moonSign} Moon (emotional trading patterns), ${profile.risingSign} Rising
+- Dominant Element: ${profile.elemental?.element} - ${profile.elemental?.balance ? `Fire:${profile.elemental.balance.fire} Earth:${profile.elemental.balance.earth} Air:${profile.elemental.balance.air} Water:${profile.elemental.balance.water}` : ""}
+- Investment Profile: ${profile.experience} experience, ${profile.riskTolerance} risk tolerance, ${profile.timeHorizon} horizon
+- Personal Mission: "${profile.intention}"
+- Current Challenge: "${profile.biggestChallenge}"
+- Vision: "${profile.idealOutcome}"
 
-PORTFOLIO HOLDINGS:
-${portfolio.map((h: any) => {
-  const data = marketData[h.symbol];
-  return `${h.symbol}: ${h.amount} units ($${(h.amount * (data?.price || 0)).toFixed(2)}) - ${data?.change7d > 0 ? '📈' : '📉'} ${data?.change7d?.toFixed(1)}% this week`;
-}).join('\n')}
+DETAILED PORTFOLIO ANALYSIS:
+Total Portfolio Value: $${analysis.totalValue.toFixed(2)}
+Total Cost Basis: $${analysis.totalCost.toFixed(2)}
+Overall P&L: ${analysis.totalPnLPercent > 0 ? '🟢' : '🔴'} ${analysis.totalPnLPercent > 0 ? '+' : ''}${analysis.totalPnLPercent.toFixed(1)}% ($${analysis.totalPnL > 0 ? '+' : ''}${analysis.totalPnL.toFixed(2)})
 
-PORTFOLIO METRICS:
-- Total Value: $${analysis.totalValue.toFixed(2)}
-- Week Performance: ${analysis.change7d > 0 ? '+' : ''}${analysis.change7d.toFixed(2)}%
-- Best Performer: ${analysis.bestPerformer?.symbol} (${analysis.bestPerformer?.change?.toFixed(1)}%)
-- Worst Performer: ${analysis.worstPerformer?.symbol} (${analysis.worstPerformer?.change?.toFixed(1)}%)
-- Risk Assessment: ${analysis.risk}
+Performance Metrics:
+- 24 Hour: ${analysis.change24h > 0 ? '+' : ''}${analysis.change24h.toFixed(2)}%
+- 7 Day: ${analysis.change7d > 0 ? '+' : ''}${analysis.change7d.toFixed(2)}%
+- 30 Day: ${analysis.change30d > 0 ? '+' : ''}${analysis.change30d.toFixed(2)}%
+
+Risk Analysis:
+- Concentration Risk: ${analysis.risk}
+- Correlation Risk: ${analysis.correlationRisk}
+- Dominant Position: ${analysis.dominantAsset ? `${analysis.dominantAsset.symbol} at ${analysis.dominantAsset.weight.toFixed(1)}%` : 'Well balanced'}
+
+INDIVIDUAL HOLDINGS DEEP DIVE:
+${holdingsDetail}
+
+Best Performer: ${analysis.bestPerformer?.symbol} (+${analysis.bestPerformer?.change?.toFixed(1)}% this week, $${analysis.bestPerformer?.value?.toFixed(0)} position)
+Worst Performer: ${analysis.worstPerformer?.symbol} (${analysis.worstPerformer?.change?.toFixed(1)}% this week, $${analysis.worstPerformer?.value?.toFixed(0)} position)
 
 MARKET CONTEXT:
 ${Object.entries(news).map(([key, value]) => `${key}: ${value}`).join('\n')}
