@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Clock, ChevronUp, ChevronDown } from "lucide-react";
 
 interface TimePickerProps {
@@ -16,6 +17,9 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
   const [minute, setMinute] = useState<number>(0);
   const [period, setPeriod] = useState<'AM' | 'PM'>('AM');
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
+  const [popoverStyle, setPopoverStyle] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
 
   // Parse the value prop (HH:MM format)
   useEffect(() => {
@@ -33,13 +37,44 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node) &&
+        !(buttonRef.current && buttonRef.current.contains(event.target as Node))
+      ) {
         setIsOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Setup portal root
+  useEffect(() => {
+    if (typeof window !== "undefined") setPortalEl(document.body);
+  }, []);
+
+  // Position popover
+  const updatePosition = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setPopoverStyle({ top: rect.bottom + 8, left: rect.left, width: rect.width });
+  };
+
+  useLayoutEffect(() => {
+    if (isOpen) updatePosition();
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onScrollOrResize = () => updatePosition();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [isOpen]);
 
   const formatTime = (h: number, m: number, p: 'AM' | 'PM') => {
     let hour24 = h;
@@ -84,6 +119,7 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
       )}
       
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`
@@ -99,8 +135,11 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
         <Clock size={16} className="text-cyan-400" />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl">
+      {isOpen && portalEl && createPortal(
+        <div
+          className="z-[1000] p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
+          style={{ position: "fixed", top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width }}
+        >
           <div className="flex items-center gap-4">
             {/* Hour */}
             <div className="flex flex-col items-center">
@@ -187,7 +226,8 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
               Set Time
             </button>
           </div>
-        </div>
+        </div>,
+        portalEl
       )}
     </div>
   );

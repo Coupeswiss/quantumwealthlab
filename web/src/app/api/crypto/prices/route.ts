@@ -3,22 +3,51 @@ import { NextResponse } from "next/server";
 // Fetch real crypto prices from CoinGecko (free tier)
 export async function GET() {
   try {
-    // CoinGecko free API - no key needed for basic requests
-    const symbols = ['bitcoin', 'ethereum', 'solana'];
-    const url = `https://api.coingecko.com/api/v3/simple/price?ids=${symbols.join(',')}&vs_currencies=usd&include_24hr_vol=true&include_24hr_change=true&include_market_cap=true`;
-    
-    const response = await fetch(url, {
-      next: { revalidate: 10 }, // Cache for 10 seconds
-      headers: {
-        'Accept': 'application/json',
+    // Prefer CoinGecko pro if API key provided (more reliable). Fallback to public, then Coinbase.
+    const ids = ['bitcoin', 'ethereum', 'solana'];
+    const coingeckoProKey = process.env.COINGECKO_API_KEY; // optional
+
+    let data: any | null = null;
+
+    // 1) Try CoinGecko Pro/Public
+    try {
+      const base = coingeckoProKey
+        ? 'https://pro-api.coingecko.com/api/v3'
+        : 'https://api.coingecko.com/api/v3';
+      const params = new URLSearchParams({
+        ids: ids.join(','),
+        vs_currencies: 'usd',
+        include_24hr_vol: 'true',
+        include_24hr_change: 'true',
+        include_market_cap: 'true',
+      });
+      const url = `${base}/simple/price?${params.toString()}`;
+      const response = await fetch(url, {
+        next: { revalidate: 15 },
+        headers: {
+          Accept: 'application/json',
+          ...(coingeckoProKey ? { 'x-cg-pro-api-key': coingeckoProKey } : {}),
+        },
+      });
+      if (!response.ok) throw new Error(`CG status ${response.status}`);
+      data = await response.json();
+    } catch (e) {
+      // 2) Fallback to Coinbase spot price endpoints (per-asset)
+      try {
+        const [btc, eth, sol] = await Promise.all([
+          fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(r => r.json()),
+          fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot').then(r => r.json()),
+          fetch('https://api.coinbase.com/v2/prices/SOL-USD/spot').then(r => r.json()),
+        ]);
+        data = {
+          bitcoin: { usd: parseFloat(btc?.data?.amount ?? '0') },
+          ethereum: { usd: parseFloat(eth?.data?.amount ?? '0') },
+          solana: { usd: parseFloat(sol?.data?.amount ?? '0') },
+        };
+      } catch (e2) {
+        throw new Error('Failed all price providers');
       }
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to fetch prices from CoinGecko');
     }
-
-    const data = await response.json();
     
     // Format the response
     const formattedData = {

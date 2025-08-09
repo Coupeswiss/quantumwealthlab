@@ -1,5 +1,6 @@
 "use client";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface DatePickerProps {
@@ -15,6 +16,9 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [portalEl, setPortalEl] = useState<HTMLElement | null>(null);
+  const [popoverStyle, setPopoverStyle] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
 
   // Parse the value prop (YYYY-MM-DD format)
   useEffect(() => {
@@ -30,13 +34,48 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
   // Close on outside click
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(event.target as Node) &&
+        !(buttonRef.current && buttonRef.current.contains(event.target as Node))
+      ) {
         setIsOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Setup portal root on client only
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setPortalEl(document.body);
+    }
+  }, []);
+
+  // Position popover
+  const updatePosition = () => {
+    if (!buttonRef.current) return;
+    const rect = buttonRef.current.getBoundingClientRect();
+    setPopoverStyle({ top: rect.bottom + 8, left: rect.left, width: rect.width });
+  };
+
+  useLayoutEffect(() => {
+    if (isOpen) {
+      updatePosition();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onScrollOrResize = () => updatePosition();
+    window.addEventListener("scroll", onScrollOrResize, true);
+    window.addEventListener("resize", onScrollOrResize);
+    return () => {
+      window.removeEventListener("scroll", onScrollOrResize, true);
+      window.removeEventListener("resize", onScrollOrResize);
+    };
+  }, [isOpen]);
 
   const months = [
     "January", "February", "March", "April", "May", "June",
@@ -139,6 +178,7 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
       )}
       
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`
@@ -154,8 +194,11 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
         <Calendar size={16} className="text-cyan-400" />
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl">
+      {isOpen && portalEl && createPortal(
+        <div
+          className="z-[1000] p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
+          style={{ position: "fixed", top: popoverStyle.top, left: popoverStyle.left, width: popoverStyle.width }}
+        >
           {/* Month/Year Navigation */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -222,7 +265,8 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
               Today
             </button>
           </div>
-        </div>
+        </div>,
+        portalEl
       )}
     </div>
   );
