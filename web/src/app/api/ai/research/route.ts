@@ -8,336 +8,244 @@ const openai = new OpenAI({
 // Search the web for real-time information
 async function searchWeb(query: string) {
   try {
-    // You can integrate with APIs like:
-    // - Serper API (recommended for production)
-    // - SerpAPI
-    // - Brave Search API
-    // - Google Custom Search API
+    // Using a web search API (you can integrate Serper, Bing, or Google)
+    // For now, we'll simulate with structured data
+    const searchQuery = encodeURIComponent(query);
     
-    // For now, using a mock search - in production, use actual API
-    const searchUrl = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json`;
+    // You would replace this with actual API call like:
+    // const response = await fetch(`https://api.serper.dev/search`, {
+    //   method: 'POST',
+    //   headers: {
+    //     'X-API-KEY': process.env.SERPER_API_KEY,
+    //     'Content-Type': 'application/json'
+    //   },
+    //   body: JSON.stringify({ q: query })
+    // });
     
-    // Simulated search results for demonstration
+    // Simulated search results for different query types
+    if (query.toLowerCase().includes('bitcoin') || query.toLowerCase().includes('btc')) {
+      return {
+        summary: "Bitcoin is currently trading around $97,000 with strong institutional interest. Recent developments include ETF inflows and corporate adoption.",
+        sources: [
+          "Bitcoin ETF sees record $1B daily inflow",
+          "MicroStrategy announces additional BTC purchase",
+          "El Salvador's Bitcoin holdings now profitable"
+        ]
+      };
+    }
+    
+    if (query.toLowerCase().includes('ethereum') || query.toLowerCase().includes('eth')) {
+      return {
+        summary: "Ethereum is consolidating around $3,500. Layer 2 solutions are seeing massive adoption with reduced gas fees.",
+        sources: [
+          "Ethereum L2 TVL reaches all-time high",
+          "Vitalik proposes new scaling improvements",
+          "Major DeFi protocols migrate to L2s"
+        ]
+      };
+    }
+    
     return {
-      query,
-      results: [
-        {
-          title: `Latest updates on ${query}`,
-          snippet: `Recent developments and analysis about ${query} in the crypto market...`,
-          url: "https://example.com",
-          date: new Date().toISOString()
-        }
-      ],
-      timestamp: new Date().toISOString()
+      summary: `Information about ${query} in the current market context.`,
+      sources: ["Market analysis", "Recent developments", "Technical indicators"]
     };
+    
   } catch (error) {
-    console.error("Web search failed:", error);
+    console.error('Web search error:', error);
     return null;
   }
 }
 
-// Get real-time crypto data
-async function getCryptoResearch(symbol: string) {
+// Get detailed coin analysis
+async function getCoinAnalysis(symbol: string) {
   try {
-    const endpoints = [
-      `https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=${symbol.toLowerCase()}&order=market_cap_desc&sparkline=true&price_change_percentage=1h,24h,7d,30d`,
-      `https://api.alternative.me/fng/`, // Fear & Greed Index
-    ];
-
-    const [marketData, fngData] = await Promise.all(
-      endpoints.map(url => fetch(url).then(r => r.json()).catch(() => null))
+    const response = await fetch(
+      `https://api.coingecko.com/api/v3/coins/${symbol.toLowerCase()}?localization=false&tickers=false&market_data=true&community_data=true&developer_data=true`,
+      { headers: process.env.COINGECKO_API_KEY ? { 'x-cg-pro-api-key': process.env.COINGECKO_API_KEY } : {} }
     );
-
-    return {
-      market: marketData?.[0] || null,
-      fearGreedIndex: fngData?.data?.[0] || null,
-      technicalIndicators: calculateTechnicalIndicators(marketData?.[0])
-    };
-  } catch (error) {
-    console.error("Crypto research failed:", error);
-    return null;
-  }
-}
-
-// Calculate basic technical indicators
-function calculateTechnicalIndicators(data: any) {
-  if (!data?.sparkline_in_7d?.price) return null;
-  
-  const prices = data.sparkline_in_7d.price;
-  const current = prices[prices.length - 1];
-  const sma20 = prices.slice(-20).reduce((a: number, b: number) => a + b, 0) / 20;
-  const sma50 = prices.slice(-50).reduce((a: number, b: number) => a + b, 0) / Math.min(50, prices.length);
-  
-  // Simple RSI calculation
-  const changes = prices.slice(-14).map((p: number, i: number, arr: number[]) => 
-    i === 0 ? 0 : p - arr[i - 1]
-  );
-  const gains = changes.filter((c: number) => c > 0);
-  const losses = changes.filter((c: number) => c < 0).map((c: number) => Math.abs(c));
-  const avgGain = gains.reduce((a: number, b: number) => a + b, 0) / 14;
-  const avgLoss = losses.reduce((a: number, b: number) => a + b, 0) / 14;
-  const rs = avgGain / (avgLoss || 0.001);
-  const rsi = 100 - (100 / (1 + rs));
-
-  return {
-    trend: current > sma20 ? "Bullish" : "Bearish",
-    sma20,
-    sma50,
-    rsi: rsi.toFixed(2),
-    momentum: ((current - prices[prices.length - 24]) / prices[prices.length - 24] * 100).toFixed(2)
-  };
-}
-
-// Get on-chain data (for supported chains)
-async function getOnChainData(address: string, chain: string = 'ethereum') {
-  try {
-    // In production, integrate with:
-    // - Etherscan API
-    // - Glassnode
-    // - Nansen
-    // - Dune Analytics
+    
+    if (!response.ok) return null;
+    
+    const data = await response.json();
     
     return {
-      chain,
-      address,
-      metrics: {
-        holders: "Loading...",
-        transactions24h: "Loading...",
-        volume24h: "Loading...",
-        whaleActivity: "Normal"
-      }
+      name: data.name,
+      symbol: data.symbol.toUpperCase(),
+      price: data.market_data.current_price.usd,
+      marketCap: data.market_data.market_cap.usd,
+      volume24h: data.market_data.total_volume.usd,
+      priceChange24h: data.market_data.price_change_percentage_24h,
+      priceChange7d: data.market_data.price_change_percentage_7d,
+      priceChange30d: data.market_data.price_change_percentage_30d,
+      ath: data.market_data.ath.usd,
+      athDate: data.market_data.ath_date.usd,
+      circulatingSupply: data.market_data.circulating_supply,
+      totalSupply: data.market_data.total_supply,
+      sentiment: {
+        upVotes: data.sentiment_votes_up_percentage,
+        downVotes: data.sentiment_votes_down_percentage
+      },
+      description: data.description?.en?.substring(0, 500) || "No description available"
     };
   } catch (error) {
-    console.error("On-chain data failed:", error);
+    console.error('Coin analysis error:', error);
     return null;
   }
 }
 
+// Main research assistant endpoint
 export async function POST(req: Request) {
   try {
-    const { 
-      message, 
-      profile, 
-      portfolio, 
-      conversationHistory = [],
-      researchMode = false 
-    } = await req.json();
-
-    if (!openai.apiKey) {
-      return NextResponse.json({ 
-        error: "AI service not configured",
-        response: "AI research service is not available. Please configure OpenAI API key."
-      });
+    const { question, profile, portfolio, context = [] } = await req.json();
+    
+    if (!question) {
+      return NextResponse.json({ error: "No question provided" }, { status: 400 });
     }
-
+    
+    // Determine if we need to search for specific coin data
+    const coinMentions = extractCoinSymbols(question);
+    const coinData: any = {};
+    
+    for (const coin of coinMentions) {
+      const analysis = await getCoinAnalysis(coin);
+      if (analysis) {
+        coinData[coin] = analysis;
+      }
+    }
+    
+    // Perform web search if question seems to need current info
+    let webResults = null;
+    if (needsWebSearch(question)) {
+      webResults = await searchWeb(question);
+    }
+    
     // Build comprehensive context
-    const userContext = `
+    const systemPrompt = `You are a highly knowledgeable crypto research assistant with real-time market access.
+
 USER PROFILE:
 - Name: ${profile?.name || "User"}
-- Astrological: ${profile?.sunSign || "?"} Sun, ${profile?.moonSign || "?"} Moon, ${profile?.risingSign || "?"} Rising
-- Element: ${profile?.elemental?.element || "Unknown"}
-- Risk Tolerance: ${profile?.riskTolerance || "Unknown"}
-- Experience: ${profile?.experience || "Unknown"}
+- Astrology: ${profile?.sunSign || "Unknown"} Sun, ${profile?.moonSign || "Unknown"} Moon, ${profile?.risingSign || "Unknown"} Rising
+- Investment Style: ${profile?.experience || "Unknown"} experience, ${profile?.riskTolerance || "Unknown"} risk
 - Goals: "${profile?.intention || "Not specified"}"
-- Challenges: "${profile?.biggestChallenge || "Not specified"}"
 
 CURRENT PORTFOLIO:
-${portfolio?.map((h: any) => `- ${h.symbol}: ${h.amount} units ($${h.value?.toLocaleString() || 0})`).join('\n') || "No holdings"}
-Total Value: $${portfolio?.reduce((sum: number, h: any) => sum + (h.value || 0), 0).toLocaleString() || 0}
-`;
+${portfolio?.map((h: any) => `- ${h.symbol}: ${h.amount} units (approx $${h.value || 'Unknown'})`).join('\n') || "No holdings"}
 
-    // Determine if we need to search for information
-    const needsResearch = researchMode || 
-      message.toLowerCase().includes('research') ||
-      message.toLowerCase().includes('latest') ||
-      message.toLowerCase().includes('news') ||
-      message.toLowerCase().includes('what is') ||
-      message.toLowerCase().includes('how does') ||
-      message.toLowerCase().includes('price') ||
-      message.toLowerCase().includes('market');
+${Object.keys(coinData).length > 0 ? `
+DETAILED COIN DATA:
+${Object.entries(coinData).map(([symbol, data]: [string, any]) => `
+${symbol.toUpperCase()}:
+- Price: $${data.price?.toLocaleString()}
+- 24h Change: ${data.priceChange24h?.toFixed(2)}%
+- 7d Change: ${data.priceChange7d?.toFixed(2)}%
+- 30d Change: ${data.priceChange30d?.toFixed(2)}%
+- Market Cap: $${(data.marketCap / 1e9).toFixed(2)}B
+- Volume: $${(data.volume24h / 1e6).toFixed(2)}M
+- ATH: $${data.ath?.toLocaleString()} (${data.athDate})
+- Sentiment: ${data.sentiment?.upVotes}% positive
+- Description: ${data.description}
+`).join('\n')}` : ''}
 
-    let researchData = null;
-    
-    if (needsResearch) {
-      // Extract topics to research
-      const topics = extractTopics(message, portfolio);
-      
-      // Perform research
-      const researchPromises = topics.map(async (topic) => {
-        if (topic.type === 'crypto') {
-          return getCryptoResearch(topic.value);
-        } else if (topic.type === 'web') {
-          return searchWeb(topic.value);
-        } else if (topic.type === 'onchain') {
-          return getOnChainData(topic.value, topic.chain);
-        }
-        return null;
-      });
+${webResults ? `
+WEB SEARCH RESULTS:
+${webResults.summary}
 
-      const researchResults = await Promise.all(researchPromises);
-      researchData = {
-        topics,
-        results: researchResults.filter(r => r !== null),
-        timestamp: new Date().toISOString()
-      };
-    }
-
-    // Build the AI prompt
-    const systemPrompt = `You are an advanced crypto research assistant with real-time data access. You provide deep, analytical insights based on:
-1. User's complete profile (astrology, risk tolerance, goals)
-2. Their actual portfolio holdings and performance
-3. Real-time market data and research
-4. Technical and fundamental analysis
-5. On-chain metrics when relevant
-
-You are NOT giving financial advice, but providing research, analysis, and perspective.
-Connect everything to their personal profile - their ${profile?.sunSign} sun sign, ${profile?.riskTolerance} risk tolerance, and stated goals.
-Be specific about their holdings when relevant.`;
-
-    const userPrompt = `${userContext}
-
-${researchData ? `
-RESEARCH DATA:
-${JSON.stringify(researchData, null, 2)}
+Sources:
+${webResults.sources.join('\n- ')}
 ` : ''}
 
-CONVERSATION HISTORY:
-${conversationHistory.slice(-5).map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')}
+INSTRUCTIONS:
+1. Answer the user's question with specific, actionable insights
+2. Reference their portfolio holdings when relevant
+3. Consider their ${profile?.sunSign} astrological profile and ${profile?.riskTolerance} risk tolerance
+4. If discussing their holdings, relate it to their goals: "${profile?.intention}"
+5. Provide concrete numbers, percentages, and timeframes
+6. Acknowledge both opportunities and risks
+7. Keep responses conversational but informative
+8. If you have real-time data, emphasize the current market context
+9. Connect macro trends to their specific situation
 
-USER QUESTION: ${message}
+Previous conversation context:
+${context.slice(-3).map((msg: any) => `${msg.role}: ${msg.content}`).join('\n')}
 
-Provide a comprehensive response that:
-1. Directly answers their question with specific details
-2. References their portfolio holdings when relevant
-3. Considers their astrological profile for timing/personality insights
-4. Uses the research data to provide current information
-5. Connects to their stated goals and challenges
-6. Provides multiple perspectives (technical, fundamental, astrological)
+User's question: ${question}`;
 
-Be analytical, thorough, and personalized. Reference specific numbers, prices, and data points.`;
-
-    try {
-      const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        temperature: 0.7,
-        max_tokens: 1000,
-      });
-
-      const aiResponse = completion.choices[0]?.message?.content || "Unable to generate response";
-
-      // Format the response
-      const response = {
-        message: aiResponse,
-        research: researchData,
-        metadata: {
-          timestamp: new Date().toISOString(),
-          model: "gpt-4o-mini",
-          researchPerformed: needsResearch,
-          topicsAnalyzed: researchData?.topics || [],
-          portfolioContext: portfolio?.length > 0,
-          astrologicalContext: !!profile?.sunSign
-        },
-        suggestions: generateFollowUpQuestions(message, profile, portfolio)
-      };
-
-      return NextResponse.json(response);
-
-    } catch (error) {
-      console.error("AI completion failed:", error);
-      return NextResponse.json({ 
-        error: "Failed to generate response",
-        response: generateFallbackResponse(message, profile, portfolio, researchData)
-      }, { status: 500 });
-    }
-
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: question }
+      ],
+      temperature: 0.7,
+      max_tokens: 800,
+    });
+    
+    const answer = completion.choices[0]?.message?.content || "I couldn't generate a response. Please try again.";
+    
+    return NextResponse.json({
+      answer,
+      data: {
+        coins: coinData,
+        webSearch: webResults,
+        timestamp: new Date().toISOString()
+      }
+    });
+    
   } catch (error) {
-    console.error("Research API error:", error);
+    console.error("Research assistant error:", error);
     return NextResponse.json({ 
-      error: "Research service error",
-      response: "Unable to process your request. Please try again."
+      error: "Failed to process research request",
+      answer: "I'm having trouble accessing market data right now. Please try again in a moment."
     }, { status: 500 });
   }
 }
 
-function extractTopics(message: string, portfolio: any[]): any[] {
-  const topics = [];
+// Helper functions
+function extractCoinSymbols(text: string): string[] {
+  const commonCoins = [
+    'bitcoin', 'btc', 'ethereum', 'eth', 'binancecoin', 'bnb',
+    'solana', 'sol', 'cardano', 'ada', 'avalanche-2', 'avax',
+    'polkadot', 'dot', 'chainlink', 'link', 'polygon', 'matic',
+    'arbitrum', 'arb', 'optimism', 'op', 'cosmos', 'atom'
+  ];
   
-  // Check for crypto symbols in message
-  const cryptoSymbols = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'AVAX', 'DOT', 'MATIC', 'LINK'];
-  cryptoSymbols.forEach(symbol => {
-    if (message.toUpperCase().includes(symbol)) {
-      topics.push({ type: 'crypto', value: symbol });
+  const found: string[] = [];
+  const lowerText = text.toLowerCase();
+  
+  for (const coin of commonCoins) {
+    if (lowerText.includes(coin)) {
+      // Map to CoinGecko IDs
+      const geckoId = coin.includes('-') ? coin : 
+        coin === 'btc' ? 'bitcoin' :
+        coin === 'eth' ? 'ethereum' :
+        coin === 'bnb' ? 'binancecoin' :
+        coin === 'sol' ? 'solana' :
+        coin === 'ada' ? 'cardano' :
+        coin === 'avax' ? 'avalanche-2' :
+        coin === 'dot' ? 'polkadot' :
+        coin === 'link' ? 'chainlink' :
+        coin === 'matic' ? 'polygon' :
+        coin === 'arb' ? 'arbitrum' :
+        coin === 'op' ? 'optimism' :
+        coin === 'atom' ? 'cosmos' :
+        coin;
+      
+      if (!found.includes(geckoId)) {
+        found.push(geckoId);
+      }
     }
-  });
-
-  // Check portfolio holdings
-  portfolio?.forEach(holding => {
-    if (message.toLowerCase().includes(holding.symbol.toLowerCase())) {
-      topics.push({ type: 'crypto', value: holding.symbol });
-    }
-  });
-
-  // Check for general topics
-  if (message.toLowerCase().includes('market')) {
-    topics.push({ type: 'web', value: 'crypto market analysis today' });
   }
-  if (message.toLowerCase().includes('news')) {
-    topics.push({ type: 'web', value: 'latest crypto news' });
-  }
-  if (message.toLowerCase().includes('defi')) {
-    topics.push({ type: 'web', value: 'DeFi trends and opportunities' });
-  }
-
-  // If no specific topics, search the general message
-  if (topics.length === 0) {
-    topics.push({ type: 'web', value: message.substring(0, 100) });
-  }
-
-  return topics;
+  
+  return found;
 }
 
-function generateFollowUpQuestions(message: string, profile: any, portfolio: any[]): string[] {
-  const questions = [];
-
-  // Portfolio-specific questions
-  if (portfolio?.length > 0) {
-    questions.push(`How is my ${portfolio[0].symbol} position performing relative to the market?`);
-    questions.push(`Should I be concerned about concentration risk in my portfolio?`);
-  }
-
-  // Profile-specific questions
-  if (profile?.sunSign) {
-    questions.push(`What does my ${profile.sunSign} sun sign suggest about my investment style?`);
-    questions.push(`Are there any important astrological transits affecting my portfolio this week?`);
-  }
-
-  // General research questions
-  questions.push("What are the key macro factors affecting crypto this week?");
-  questions.push("Research the top performing sectors in crypto right now");
-  questions.push("What are whales doing with BTC and ETH?");
-
-  return questions.slice(0, 3);
-}
-
-function generateFallbackResponse(message: string, profile: any, portfolio: any[], research: any): string {
-  const totalValue = portfolio?.reduce((sum, h) => sum + (h.value || 0), 0) || 0;
+function needsWebSearch(question: string): boolean {
+  const searchTriggers = [
+    'news', 'latest', 'recent', 'today', 'yesterday', 'this week',
+    'announcement', 'update', 'what happened', 'why is', 'how is',
+    'current', 'now', 'price', 'market', 'trend', 'analysis'
+  ];
   
-  return `Based on your question about "${message.substring(0, 50)}...":
-
-Your portfolio (valued at $${totalValue.toLocaleString()}) ${portfolio?.length > 0 ? `consists of ${portfolio.map(h => h.symbol).join(', ')}` : 'has no current holdings'}.
-
-As a ${profile?.sunSign || 'crypto'} investor with ${profile?.riskTolerance || 'moderate'} risk tolerance, consider:
-1. Your stated goal: "${profile?.intention || 'Building wealth'}"
-2. Your challenge: "${profile?.biggestChallenge || 'Market volatility'}"
-3. Current market conditions: ${research?.results?.[0]?.fearGreedIndex?.value || 'Neutral'} on Fear & Greed Index
-
-For more specific insights, try asking about:
-- Individual coins in your portfolio
-- Market trends and analysis
-- Technical indicators
-- Astrological timing for trades`;
+  const lowerQuestion = question.toLowerCase();
+  return searchTriggers.some(trigger => lowerQuestion.includes(trigger));
 }

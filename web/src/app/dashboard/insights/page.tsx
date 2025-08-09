@@ -1,384 +1,349 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { ArrowUpIcon, ArrowDownIcon, TrendingUpIcon, ChartBarIcon, SparklesIcon, SearchIcon, SendIcon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { ChevronLeft, Send, Sparkles, TrendingUp, Globe, Brain, Calendar, MessageCircle } from "lucide-react";
 
 export default function InsightsPage() {
-  const [profile, setProfile] = useState<any>(null);
-  const [portfolio, setPortfolio] = useState<any[]>([]);
-  const [weeklyAnalysis, setWeeklyAnalysis] = useState<any>(null);
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
+  const [weeklyReport, setWeeklyReport] = useState<any>(null);
+  const [lastReportDate, setLastReportDate] = useState<string | null>(null);
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const [profile, setProfile] = useState<any>(null);
+  const [portfolio, setPortfolio] = useState<any[]>([]);
 
   useEffect(() => {
-    loadData();
+    loadUserData();
+    checkWeeklyReport();
   }, []);
 
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatMessages]);
+  const loadUserData = () => {
+    const savedProfile = localStorage.getItem('userProfile');
+    const savedPortfolio = localStorage.getItem('portfolio');
+    
+    if (savedProfile) {
+      setProfile(JSON.parse(savedProfile));
+    }
+    if (savedPortfolio) {
+      setPortfolio(JSON.parse(savedPortfolio));
+    }
+  };
 
-  const loadData = async () => {
+  const checkWeeklyReport = async () => {
+    try {
+      // Check if we have a saved report from this week
+      const savedReport = localStorage.getItem('weeklyReport');
+      const savedDate = localStorage.getItem('weeklyReportDate');
+      
+      if (savedReport && savedDate) {
+        const reportData = JSON.parse(savedReport);
+        const reportDate = new Date(savedDate);
+        const now = new Date();
+        const daysSince = (now.getTime() - reportDate.getTime()) / (1000 * 60 * 60 * 24);
+        
+        if (daysSince < 7) {
+          setWeeklyReport(reportData);
+          setLastReportDate(savedDate);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      // Generate new report if needed
+      await generateWeeklyReport();
+    } catch (error) {
+      console.error('Error checking weekly report:', error);
+      setLoading(false);
+    }
+  };
+
+  const generateWeeklyReport = async () => {
     setLoading(true);
     try {
-      // Load profile from localStorage
-      const savedProfile = localStorage.getItem('userProfile');
-      const profileData = savedProfile ? JSON.parse(savedProfile) : {};
-      setProfile(profileData);
+      const response = await fetch('/api/weekly-insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile,
+          portfolio,
+          lastReportDate
+        })
+      });
 
-      // Load portfolio
-      const savedPortfolio = localStorage.getItem('portfolio');
-      const portfolioData = savedPortfolio ? JSON.parse(savedPortfolio) : [];
-      setPortfolio(portfolioData);
-
-      // Check if we have cached weekly analysis from this week
-      const cachedAnalysis = localStorage.getItem('weeklyAnalysis');
-      const cached = cachedAnalysis ? JSON.parse(cachedAnalysis) : null;
+      const data = await response.json();
       
-      const now = new Date();
-      const weekNumber = Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
-      
-      if (cached && cached.weekNumber === weekNumber) {
-        setWeeklyAnalysis(cached);
-      } else {
-        // Generate new weekly analysis
-        await generateWeeklyAnalysis(profileData, portfolioData);
+      if (data.report) {
+        setWeeklyReport(data.report);
+        setLastReportDate(data.generatedAt);
+        
+        // Save to localStorage
+        localStorage.setItem('weeklyReport', JSON.stringify(data.report));
+        localStorage.setItem('weeklyReportDate', data.generatedAt);
       }
     } catch (error) {
-      console.error("Failed to load data:", error);
+      console.error('Error generating report:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const generateWeeklyAnalysis = async (profileData: any, portfolioData: any[]) => {
-    try {
-      const response = await fetch('/api/portfolio/analysis', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          profile: profileData, 
-          portfolio: portfolioData 
-        })
-      });
-
-      if (response.ok) {
-        const analysis = await response.json();
-        setWeeklyAnalysis(analysis);
-        
-        // Cache the analysis
-        localStorage.setItem('weeklyAnalysis', JSON.stringify(analysis));
-      }
-    } catch (error) {
-      console.error("Failed to generate analysis:", error);
-    }
-  };
-
   const sendChatMessage = async () => {
-    if (!chatInput.trim()) return;
-
-    const userMessage = { role: 'user', content: chatInput, timestamp: new Date().toISOString() };
+    if (!chatInput.trim() || chatLoading) return;
+    
+    const userMessage = { role: 'user', content: chatInput };
     setChatMessages(prev => [...prev, userMessage]);
-    setChatInput("");
+    setChatInput('');
     setChatLoading(true);
-
+    
     try {
       const response = await fetch('/api/ai/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          message: chatInput,
+          question: chatInput,
           profile,
           portfolio,
-          conversationHistory: chatMessages,
-          researchMode: true
+          context: chatMessages.slice(-6) // Last 3 exchanges
         })
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        const aiMessage = {
+      
+      const data = await response.json();
+      
+      if (data.answer) {
+        setChatMessages(prev => [...prev, {
           role: 'assistant',
-          content: data.message || data.response,
-          research: data.research,
-          suggestions: data.suggestions,
-          timestamp: new Date().toISOString()
-        };
-        setChatMessages(prev => [...prev, aiMessage]);
+          content: data.answer,
+          data: data.data
+        }]);
       }
     } catch (error) {
-      console.error("Chat error:", error);
+      console.error('Chat error:', error);
       setChatMessages(prev => [...prev, {
         role: 'assistant',
-        content: "I'm having trouble connecting right now. Please try again.",
-        timestamp: new Date().toISOString()
+        content: 'Sorry, I encountered an error. Please try again.'
       }]);
     } finally {
       setChatLoading(false);
     }
   };
 
-  const formatValue = (value: number) => {
-    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
-    if (value >= 1000) return `$${(value / 1000).toFixed(2)}K`;
-    return `$${value.toFixed(2)}`;
+  const formatReportSection = (content: string) => {
+    // Split content into paragraphs and format
+    const sections = content.split('\n\n');
+    return sections.map((section, idx) => {
+      // Check for emoji headers
+      if (section.includes('🌟') || section.includes('📊') || section.includes('🔮') || 
+          section.includes('💎') || section.includes('🌍') || section.includes('🎯')) {
+        const [title, ...rest] = section.split('\n');
+        return (
+          <div key={idx} className="mb-6">
+            <h3 className="text-lg font-semibold mb-2 text-purple-400">
+              {title}
+            </h3>
+            <p className="text-gray-300 leading-relaxed">
+              {rest.join(' ').replace(/\*\*/g, '')}
+            </p>
+          </div>
+        );
+      }
+      return (
+        <p key={idx} className="text-gray-300 mb-4 leading-relaxed">
+          {section.replace(/\*\*/g, '')}
+        </p>
+      );
+    });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-7xl mx-auto p-6 space-y-6">
-      {/* Weekly Portfolio Analysis */}
-      <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-2xl p-8 border border-purple-500/20">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
-            Weekly Portfolio Intelligence Report
-          </h1>
-          <span className="text-sm text-gray-400">
-            Week {weeklyAnalysis?.weekNumber || new Date().getWeek()} • {new Date().toLocaleDateString()}
-          </span>
-        </div>
-
-        {/* Portfolio Overview */}
-        {weeklyAnalysis?.portfolio && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-black/40 rounded-xl p-4 border border-purple-500/20">
-              <p className="text-sm text-gray-400 mb-1">Total Portfolio Value</p>
-              <p className="text-2xl font-bold text-white">
-                {formatValue(weeklyAnalysis.portfolio.totalValue)}
-              </p>
-              <div className="flex items-center mt-2 text-sm">
-                <span className={`flex items-center ${weeklyAnalysis.portfolio.performance.week >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {weeklyAnalysis.portfolio.performance.week >= 0 ? <ArrowUpIcon className="w-4 h-4 mr-1" /> : <ArrowDownIcon className="w-4 h-4 mr-1" />}
-                  {Math.abs(weeklyAnalysis.portfolio.performance.week)}% This Week
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-black/40 rounded-xl p-4 border border-purple-500/20">
-              <p className="text-sm text-gray-400 mb-1">Best Performer</p>
-              {weeklyAnalysis.portfolio.holdings[0] && (
-                <>
-                  <p className="text-2xl font-bold text-white">
-                    {weeklyAnalysis.portfolio.holdings.reduce((best: any, h: any) => 
-                      (h.performance?.weekly || 0) > (best.performance?.weekly || 0) ? h : best
-                    ).symbol}
-                  </p>
-                  <p className="text-sm text-green-400 mt-2">
-                    +{weeklyAnalysis.portfolio.holdings.reduce((best: any, h: any) => 
-                      (h.performance?.weekly || 0) > (best.performance?.weekly || 0) ? h : best
-                    ).performance?.weekly}% This Week
-                  </p>
-                </>
-              )}
-            </div>
-
-            <div className="bg-black/40 rounded-xl p-4 border border-purple-500/20">
-              <p className="text-sm text-gray-400 mb-1">Market Environment</p>
-              <p className="text-2xl font-bold text-white">
-                {weeklyAnalysis.macro?.vix?.value < 20 ? 'Stable' : 'Volatile'}
-              </p>
-              <p className="text-sm text-gray-400 mt-2">
-                VIX: {weeklyAnalysis.macro?.vix?.value} • DXY: {weeklyAnalysis.macro?.dxy?.value}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Holdings Performance */}
-        {weeklyAnalysis?.portfolio?.holdings && (
-          <div className="bg-black/40 rounded-xl p-6 border border-purple-500/20 mb-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <ChartBarIcon className="w-5 h-5 mr-2 text-purple-400" />
-              Holdings Performance
-            </h3>
-            <div className="space-y-3">
-              {weeklyAnalysis.portfolio.holdings.map((holding: any) => (
-                <div key={holding.symbol} className="flex items-center justify-between p-3 bg-black/20 rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div>
-                      <p className="font-semibold text-white">{holding.symbol}</p>
-                      <p className="text-sm text-gray-400">
-                        {holding.amount} units • {weeklyAnalysis.portfolio.weights.find((w: any) => w.symbol === holding.symbol)?.weight}% of portfolio
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-white">{formatValue(holding.value)}</p>
-                    <div className="flex space-x-2 text-sm">
-                      <span className={holding.performance?.daily >= 0 ? 'text-green-400' : 'text-red-400'}>
-                        24h: {holding.performance?.daily}%
-                      </span>
-                      <span className={holding.performance?.weekly >= 0 ? 'text-green-400' : 'text-red-400'}>
-                        7d: {holding.performance?.weekly}%
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* AI Analysis */}
-        {weeklyAnalysis?.analysis && (
-          <div className="bg-black/40 rounded-xl p-6 border border-purple-500/20 mb-6">
-            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-              <SparklesIcon className="w-5 h-5 mr-2 text-purple-400" />
-              Weekly Analysis & Perspective
-            </h3>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-gray-300 whitespace-pre-wrap">{weeklyAnalysis.analysis}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Astrological Context */}
-        {weeklyAnalysis?.astrologicalContext && (
-          <div className="bg-black/40 rounded-xl p-6 border border-purple-500/20">
-            <h3 className="text-lg font-semibold text-white mb-4">Cosmic Timing</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div>
-                <p className="text-sm text-gray-400">Lunar Phase</p>
-                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.lunarPhase}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Mercury</p>
-                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.mercuryStatus}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Weekly Aspect</p>
-                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.weeklyAspects}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-400">Personal Transit</p>
-                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.personalTransits}</p>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* AI Research Chatbot */}
-      <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 rounded-2xl p-6 border border-blue-500/20">
-        <div className="flex items-center mb-4">
-          <SearchIcon className="w-6 h-6 mr-2 text-blue-400" />
-          <h2 className="text-2xl font-bold text-white">AI Research Assistant</h2>
-        </div>
-        
-        <div className="bg-black/40 rounded-xl p-4 border border-blue-500/20 h-96 overflow-y-auto mb-4">
-          {chatMessages.length === 0 ? (
-            <div className="text-center text-gray-400 mt-8">
-              <p className="mb-4">Ask me anything about your portfolio, market analysis, or crypto research.</p>
-              <div className="space-y-2">
-                <p className="text-sm">Try asking:</p>
-                <button 
-                  onClick={() => setChatInput("Research my BTC holding and tell me the current market sentiment")}
-                  className="block mx-auto text-blue-400 hover:text-blue-300 text-sm"
-                >
-                  "Research my BTC holding and market sentiment"
-                </button>
-                <button 
-                  onClick={() => setChatInput("What are the latest developments in DeFi?")}
-                  className="block mx-auto text-blue-400 hover:text-blue-300 text-sm"
-                >
-                  "Latest developments in DeFi"
-                </button>
-                <button 
-                  onClick={() => setChatInput("How does my astrological profile affect my investment style?")}
-                  className="block mx-auto text-blue-400 hover:text-blue-300 text-sm"
-                >
-                  "How my astrology affects investing"
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {chatMessages.map((msg, idx) => (
-                <div key={idx} className={`${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                  <div className={`inline-block max-w-3xl p-3 rounded-lg ${
-                    msg.role === 'user' 
-                      ? 'bg-blue-600/20 text-white border border-blue-500/30' 
-                      : 'bg-purple-600/20 text-gray-200 border border-purple-500/30'
-                  }`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                    {msg.suggestions && (
-                      <div className="mt-3 pt-3 border-t border-gray-700">
-                        <p className="text-xs text-gray-400 mb-2">Suggested questions:</p>
-                        {msg.suggestions.map((q: string, i: number) => (
-                          <button
-                            key={i}
-                            onClick={() => setChatInput(q)}
-                            className="block text-left text-xs text-blue-400 hover:text-blue-300 mb-1"
-                          >
-                            • {q}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {new Date(msg.timestamp).toLocaleTimeString()}
-                  </p>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="text-left">
-                  <div className="inline-block p-3 bg-purple-600/20 rounded-lg border border-purple-500/30">
-                    <div className="flex space-x-2">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
-                    </div>
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-          )}
-        </div>
-
-        <div className="flex space-x-2">
-          <input
-            type="text"
-            value={chatInput}
-            onChange={(e) => setChatInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !chatLoading && sendChatMessage()}
-            placeholder="Ask about markets, research coins, or get portfolio insights..."
-            className="flex-1 px-4 py-3 bg-black/40 border border-blue-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
-            disabled={chatLoading}
-          />
+    <div className="min-h-screen bg-black text-white p-4">
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
           <button
-            onClick={sendChatMessage}
-            disabled={chatLoading || !chatInput.trim()}
-            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+            onClick={() => router.push('/dashboard')}
+            className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
           >
-            <SendIcon className="w-5 h-5" />
+            <ChevronLeft className="w-5 h-5" />
+            Back to Dashboard
           </button>
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-purple-500" />
+            <h1 className="text-2xl font-bold">Quantum Insights</h1>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Weekly Report Section */}
+          <div className="bg-gray-900 rounded-xl p-6">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <Calendar className="w-6 h-6 text-purple-500" />
+                <h2 className="text-xl font-semibold">Weekly Report</h2>
+              </div>
+              {lastReportDate && (
+                <span className="text-xs text-gray-500">
+                  Generated: {new Date(lastReportDate).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+            
+            {loading ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <p className="text-gray-400">Generating your personalized report...</p>
+              </div>
+            ) : weeklyReport ? (
+              <div className="space-y-4 max-h-[600px] overflow-y-auto pr-2">
+                {typeof weeklyReport === 'string' ? 
+                  formatReportSection(weeklyReport) : 
+                  <div className="text-gray-300">{JSON.stringify(weeklyReport, null, 2)}</div>
+                }
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-gray-400 mb-4">No report available</p>
+                <button
+                  onClick={generateWeeklyReport}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                >
+                  Generate Report
+                </button>
+              </div>
+            )}
+            
+            {/* Report Stats */}
+            {portfolio.length > 0 && (
+              <div className="mt-6 pt-6 border-t border-gray-800 grid grid-cols-2 gap-4">
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <TrendingUp className="w-4 h-4 text-green-500" />
+                    <span className="text-xs text-gray-400">Holdings</span>
+                  </div>
+                  <p className="text-lg font-semibold">{portfolio.length}</p>
+                </div>
+                <div className="bg-gray-800 rounded-lg p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Globe className="w-4 h-4 text-blue-500" />
+                    <span className="text-xs text-gray-400">Next Report</span>
+                  </div>
+                  <p className="text-sm font-semibold">
+                    {lastReportDate ? 
+                      new Date(new Date(lastReportDate).getTime() + 7 * 24 * 60 * 60 * 1000).toLocaleDateString() :
+                      'Available Now'
+                    }
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI Research Chat */}
+          <div className="bg-gray-900 rounded-xl p-6 flex flex-col">
+            <div className="flex items-center gap-3 mb-6">
+              <Brain className="w-6 h-6 text-purple-500" />
+              <h2 className="text-xl font-semibold">Research Assistant</h2>
+            </div>
+            
+            {/* Chat Messages */}
+            <div className="flex-1 min-h-[400px] max-h-[500px] overflow-y-auto mb-4 space-y-4">
+              {chatMessages.length === 0 ? (
+                <div className="text-center py-12">
+                  <MessageCircle className="w-12 h-12 text-gray-700 mx-auto mb-4" />
+                  <p className="text-gray-400 mb-2">Ask me anything about crypto markets!</p>
+                  <p className="text-xs text-gray-500">
+                    I can research coins, analyze trends, and provide personalized insights
+                  </p>
+                </div>
+              ) : (
+                chatMessages.map((msg, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[80%] rounded-lg p-3 ${
+                        msg.role === 'user'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-800 text-gray-200'
+                      }`}
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                      {msg.data?.coins && Object.keys(msg.data.coins).length > 0 && (
+                        <div className="mt-2 pt-2 border-t border-gray-700">
+                          <p className="text-xs text-gray-400 mb-1">Live Data:</p>
+                          {Object.entries(msg.data.coins).map(([symbol, data]: [string, any]) => (
+                            <div key={symbol} className="text-xs">
+                              {symbol.toUpperCase()}: ${data.price?.toFixed(2)} 
+                              <span className={data.priceChange24h > 0 ? 'text-green-400' : 'text-red-400'}>
+                                {' '}({data.priceChange24h > 0 ? '+' : ''}{data.priceChange24h?.toFixed(1)}%)
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-gray-800 rounded-lg p-3">
+                    <div className="flex gap-2">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce delay-100" />
+                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce delay-200" />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Chat Input */}
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                placeholder="Ask about market trends, specific coins, or investment strategies..."
+                className="flex-1 bg-gray-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                disabled={chatLoading}
+              />
+              <button
+                onClick={sendChatMessage}
+                disabled={!chatInput.trim() || chatLoading}
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
+            
+            {/* Example Questions */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {[
+                "What's happening with Bitcoin?",
+                "Should I buy more ETH?",
+                "Analyze my portfolio risk",
+                "Best entry for SOL?"
+              ].map((question, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => {
+                    setChatInput(question);
+                    sendChatMessage();
+                  }}
+                  className="text-xs px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded-full transition-colors"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     </div>
   );
 }
-
-// Add week number helper
-declare global {
-  interface Date {
-    getWeek(): number;
-  }
-}
-
-Date.prototype.getWeek = function() {
-  const firstDayOfYear = new Date(this.getFullYear(), 0, 1);
-  const pastDaysOfYear = (this.getTime() - firstDayOfYear.getTime()) / 86400000;
-  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
-};
