@@ -5,8 +5,8 @@ services:
     region: oregon # oregon, ohio, singapore, or frankfurt
     plan: free # or "starter" for $7/month (no sleep)
     rootDir: web
-    buildCommand: npm install && npm run build
-    startCommand: npm start
+    buildCommand: npx pnpm install && npx pnpm build
+    startCommand: npx pnpm start
     envVars:
       - key: NODE_ENV
         value: production
