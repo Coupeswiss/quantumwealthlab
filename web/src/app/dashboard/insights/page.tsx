@@ -1,359 +1,350 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Sparkles, Calendar, TrendingUp, Star, ChevronRight, Clock, Target, Brain, Zap, Moon, Sun, DollarSign, AlertCircle, CheckCircle } from "lucide-react";
+import { Sparkles, Brain, Shield, TrendingUp, Eye, Compass, MessageCircle, RefreshCw, User, Calendar, DollarSign, Target, Zap, Moon, Sun, Star, ChevronRight } from "lucide-react";
 
-interface WeeklyReport {
-  id: string;
-  weekOf: string;
-  generatedAt: string;
-  report: {
-    executiveSummary: string[];
-    portfolioPerformance: any;
-    marketAnalysis: any;
-    astrologicalForecast: any;
-    recommendations: string[];
-    riskAssessment: any;
-    weekAhead: any;
+interface AgentInsight {
+  agent: string;
+  role: string;
+  emoji: string;
+  message: string;
+}
+
+interface PersonalizedInsights {
+  insights: Record<string, AgentInsight>;
+  timestamp: string;
+  profile: {
+    name: string;
+    signs: string;
+    element: string;
   };
-  cosmicAlignment: number;
+  marketContext: any;
 }
 
 export default function InsightsPage() {
-  const [weeklyReports, setWeeklyReports] = useState<WeeklyReport[]>([]);
-  const [selectedReport, setSelectedReport] = useState<WeeklyReport | null>(null);
+  const [insights, setInsights] = useState<PersonalizedInsights | null>(null);
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [profile, setProfile] = useState<any>({});
+  const [portfolio, setPortfolio] = useState<any[]>([]);
+  const [marketData, setMarketData] = useState<any>({});
+  const [selectedAgent, setSelectedAgent] = useState<string>("all");
+  const [question, setQuestion] = useState("");
+  const [askingQuestion, setAskingQuestion] = useState(false);
 
   useEffect(() => {
-    loadReports();
+    loadUserData();
+    fetchMarketData();
+    generateInitialInsights();
   }, []);
 
-  function loadReports() {
-    // Load cached reports from localStorage
-    const cached = localStorage.getItem('qwl-weekly-reports');
-    if (cached) {
-      const reports = JSON.parse(cached);
-      setWeeklyReports(reports);
-      if (reports.length > 0) {
-        setSelectedReport(reports[0]);
-      }
+  function loadUserData() {
+    // Load profile
+    const profileData = localStorage.getItem('qwl-profile');
+    if (profileData) {
+      const parsed = JSON.parse(profileData);
+      setProfile(parsed.state?.profile || {});
+    }
+
+    // Load portfolio
+    const portfolioData = localStorage.getItem('qwl-wallets');
+    if (portfolioData) {
+      const parsed = JSON.parse(portfolioData);
+      setPortfolio(parsed.state?.wallets || []);
     }
   }
 
-  async function generateNewReport() {
-    setGenerating(true);
+  async function fetchMarketData() {
     try {
-      // Get user profile and holdings
-      const profileData = localStorage.getItem('qwl-profile');
-      const profile = profileData ? JSON.parse(profileData).state?.profile : {};
-      
-      const holdingsData = localStorage.getItem('qwl-wallets');
-      const holdings = holdingsData ? JSON.parse(holdingsData).state?.wallets : [];
+      const res = await fetch('/api/crypto/prices');
+      if (res.ok) {
+        const data = await res.json();
+        setMarketData({
+          btc: data.BTC?.price,
+          btcChange: data.BTC?.change24h,
+          eth: data.ETH?.price,
+          ethChange: data.ETH?.change24h,
+          trend: data.BTC?.change24h > 0 && data.ETH?.change24h > 0 ? "bullish" : 
+                 data.BTC?.change24h < 0 && data.ETH?.change24h < 0 ? "bearish" : "mixed"
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch market data:", error);
+    }
+  }
 
-      const res = await fetch('/api/weekly-report', {
+  async function generateInitialInsights() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/ai/agents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile, holdings })
+        body: JSON.stringify({
+          profile,
+          portfolio,
+          marketData,
+          agentType: 'all'
+        })
       });
 
       if (res.ok) {
         const data = await res.json();
-        
-        const newReport: WeeklyReport = {
-          id: Date.now().toString(),
-          weekOf: getWeekOf(),
-          generatedAt: new Date().toISOString(),
-          report: data.report,
-          cosmicAlignment: Math.floor(Math.random() * 30) + 70
-        };
-
-        const updated = [newReport, ...weeklyReports];
-        setWeeklyReports(updated);
-        setSelectedReport(newReport);
-        
-        // Save to localStorage
-        localStorage.setItem('qwl-weekly-reports', JSON.stringify(updated.slice(0, 10))); // Keep last 10
+        setInsights(data);
       }
     } catch (error) {
-      console.error('Failed to generate report:', error);
+      console.error("Failed to generate insights:", error);
     } finally {
-      setGenerating(false);
+      setLoading(false);
     }
   }
 
-  function getWeekOf() {
-    const now = new Date();
-    const monday = new Date(now);
-    monday.setDate(now.getDate() - now.getDay() + 1);
-    return monday.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  async function askQuestion() {
+    if (!question.trim()) return;
+    
+    setAskingQuestion(true);
+    try {
+      const res = await fetch('/api/ai/agents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile,
+          portfolio,
+          marketData,
+          agentType: selectedAgent,
+          question
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setInsights(data);
+        setQuestion("");
+      }
+    } catch (error) {
+      console.error("Failed to ask question:", error);
+    } finally {
+      setAskingQuestion(false);
+    }
   }
 
-  function getEmoji(type: string) {
-    const emojis: { [key: string]: string } = {
-      bullish: '🚀',
-      bearish: '🐻',
-      neutral: '⚖️',
-      profit: '💰',
-      loss: '📉',
-      warning: '⚠️',
-      success: '✅',
-      info: 'ℹ️',
-      star: '⭐',
-      fire: '🔥',
-      moon: '🌙',
-      sun: '☀️',
-      crystal: '💎',
-      rocket: '🚀',
-      chart: '📊',
-      target: '🎯',
-      lightning: '⚡',
-      sparkle: '✨'
-    };
-    return emojis[type] || '📌';
-  }
+  const agentIcons: Record<string, any> = {
+    quantum: Eye,
+    astro: Star,
+    technical: TrendingUp,
+    risk: Shield,
+    growth: Zap,
+    wisdom: Brain
+  };
+
+  const agentColors: Record<string, string> = {
+    quantum: "from-purple-500 to-pink-500",
+    astro: "from-indigo-500 to-purple-500",
+    technical: "from-blue-500 to-cyan-500",
+    risk: "from-orange-500 to-red-500",
+    growth: "from-green-500 to-emerald-500",
+    wisdom: "from-amber-500 to-yellow-500"
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold qwl-text-gradient">Quantum Insights</h1>
-          <p className="text-sm text-[var(--muted)] mt-1">Your personalized weekly wealth consciousness reports</p>
+      {/* Header with User Context */}
+      <div className="qwl-card rounded-xl p-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-semibold qwl-text-gradient">Quantum Insights</h1>
+            <p className="text-sm text-[var(--muted)] mt-1">
+              Personalized guidance from your quantum wealth consciousness team
+            </p>
+          </div>
+          <button
+            onClick={generateInitialInsights}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 rounded-lg hover:from-cyan-500/30 hover:to-blue-500/30 transition-all"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+            Refresh
+          </button>
         </div>
-        <button
-          onClick={generateNewReport}
-          disabled={generating}
-          className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 rounded-lg hover:from-cyan-500/30 hover:to-blue-500/30 transition-all"
-        >
-          <Sparkles size={16} />
-          {generating ? 'Generating...' : 'Generate Report'}
-        </button>
+
+        {/* User Profile Summary */}
+        {profile.name && (
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-3 bg-white/5 rounded-lg">
+              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
+                <User size={12} />
+                Identity
+              </div>
+              <p className="text-sm font-semibold">{profile.name}</p>
+              <p className="text-xs text-cyan-400">{profile.quantumProfile?.archetype}</p>
+            </div>
+            <div className="p-3 bg-white/5 rounded-lg">
+              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
+                <Star size={12} />
+                Cosmic Profile
+              </div>
+              <p className="text-sm font-semibold">{profile.sunSign || "?"}/{profile.moonSign || "?"}/{profile.risingSign || "?"}</p>
+              <p className="text-xs text-cyan-400">{profile.elemental?.element} Element</p>
+            </div>
+            <div className="p-3 bg-white/5 rounded-lg">
+              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
+                <Target size={12} />
+                Investment Style
+              </div>
+              <p className="text-sm font-semibold">{profile.riskTolerance || "Balanced"}</p>
+              <p className="text-xs text-cyan-400">{profile.experience || "Growing"}</p>
+            </div>
+            <div className="p-3 bg-white/5 rounded-lg">
+              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
+                <DollarSign size={12} />
+                Portfolio
+              </div>
+              <p className="text-sm font-semibold">{profile.portfolioSize || "Building"}</p>
+              <p className="text-xs text-cyan-400">{profile.timeHorizon || "Long-term"}</p>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="grid md:grid-cols-[300px_1fr] gap-6">
-        {/* Reports List */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-[var(--muted)] uppercase tracking-wider">Your Reports</h2>
+      {/* Interactive Question Section */}
+      <div className="qwl-card rounded-xl p-6">
+        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <MessageCircle className="text-cyan-400" size={20} />
+          Ask Your Quantum Advisors
+        </h2>
+        
+        <div className="flex gap-3">
+          <select
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value)}
+            className="bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400"
+          >
+            <option value="all">All Advisors</option>
+            <option value="quantum">Quantum Oracle</option>
+            <option value="astro">Cosmic Navigator</option>
+            <option value="technical">Alpha Seeker</option>
+            <option value="risk">Guardian</option>
+            <option value="growth">Abundance Amplifier</option>
+            <option value="wisdom">Sage Advisor</option>
+          </select>
           
-          {weeklyReports.length === 0 ? (
-            <div className="qwl-card rounded-xl p-4 text-center">
-              <p className="text-sm text-[var(--muted)]">No reports yet</p>
-              <p className="text-xs text-[var(--muted)] mt-2">Generate your first weekly insight</p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {weeklyReports.map((report) => (
-                <button
-                  key={report.id}
-                  onClick={() => setSelectedReport(report)}
-                  className={`w-full text-left qwl-card rounded-xl p-4 transition-all hover:scale-[1.02] ${
-                    selectedReport?.id === report.id ? 'border-cyan-500/60' : ''
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="text-sm font-semibold flex items-center gap-2">
-                        <Calendar size={14} className="text-cyan-400" />
-                        Week of {report.weekOf}
-                      </div>
-                      <div className="text-xs text-[var(--muted)] mt-1">
-                        {new Date(report.generatedAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-[var(--muted)]">Alignment</div>
-                      <div className="text-sm font-bold text-cyan-400">{report.cosmicAlignment}%</div>
-                    </div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
+          <input
+            type="text"
+            value={question}
+            onChange={(e) => setQuestion(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && askQuestion()}
+            placeholder="Ask about your wealth journey, investments, or cosmic timing..."
+            className="flex-1 bg-transparent border border-white/10 rounded-lg px-4 py-2 text-sm outline-none focus:border-cyan-400"
+          />
+          
+          <button
+            onClick={askQuestion}
+            disabled={askingQuestion || !question.trim()}
+            className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50"
+          >
+            {askingQuestion ? "Asking..." : "Ask"}
+          </button>
         </div>
+      </div>
 
-        {/* Report Content */}
-        <div className="space-y-6">
-          {selectedReport ? (
-            <>
-              {/* Executive Summary */}
-              <div className="qwl-card rounded-xl p-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                  <Star className="text-yellow-400" size={20} />
-                  <h2 className="text-lg font-semibold">Executive Summary</h2>
-                </div>
-                <div className="space-y-3">
-                  {selectedReport.report.executiveSummary?.map((point: string, i: number) => (
-                    <div key={i} className="flex items-start gap-3">
-                      <span className="text-cyan-400 mt-1">{getEmoji('star')}</span>
-                      <p className="text-sm">{point}</p>
+      {/* AI Agent Insights */}
+      {loading ? (
+        <div className="qwl-card rounded-xl p-12 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-2 border-cyan-400 border-t-transparent mx-auto mb-4"></div>
+          <p className="text-sm text-[var(--muted)]">Connecting to the quantum field...</p>
+        </div>
+      ) : insights ? (
+        <div className="grid md:grid-cols-2 gap-4">
+          {Object.entries(insights.insights).map(([key, insight]) => {
+            const Icon = agentIcons[key] || Brain;
+            const gradient = agentColors[key] || "from-gray-500 to-gray-600";
+            
+            return (
+              <div key={key} className="qwl-card rounded-xl p-6 hover:scale-[1.02] transition-all">
+                <div className="flex items-start gap-4">
+                  <div className={`p-3 rounded-xl bg-gradient-to-br ${gradient} bg-opacity-20`}>
+                    <Icon className="text-white" size={24} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-2xl">{insight.emoji}</span>
+                      <h3 className="font-semibold">{insight.agent}</h3>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Portfolio Performance */}
-              <div className="qwl-card rounded-xl p-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                  <TrendingUp className="text-green-400" size={20} />
-                  <h2 className="text-lg font-semibold">Portfolio Performance</h2>
-                </div>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Overview</p>
-                    <p className="text-sm">{selectedReport.report.portfolioPerformance?.overview}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Top Holding</p>
-                    <div className="flex items-center gap-2">
-                      <span>{getEmoji('rocket')}</span>
-                      <span className="text-sm font-semibold">{selectedReport.report.portfolioPerformance?.topHolding?.symbol}</span>
-                      <span className="text-sm text-cyan-400">{selectedReport.report.portfolioPerformance?.topHolding?.allocation}</span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 p-3 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-                  <p className="text-sm">{getEmoji('target')} {selectedReport.report.portfolioPerformance?.recommendation}</p>
-                </div>
-              </div>
-
-              {/* Market Analysis */}
-              <div className="qwl-card rounded-xl p-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                  <Brain className="text-purple-400" size={20} />
-                  <h2 className="text-lg font-semibold">Market Analysis</h2>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <DollarSign className="text-yellow-400" size={16} />
-                    <p className="text-sm">{selectedReport.report.marketAnalysis?.btc}</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Zap className="text-blue-400" size={16} />
-                    <p className="text-sm">{selectedReport.report.marketAnalysis?.eth}</p>
-                  </div>
-                  <div className="mt-4 p-3 bg-purple-500/10 rounded-lg border border-purple-500/20">
-                    <p className="text-sm">{getEmoji('chart')} {selectedReport.report.marketAnalysis?.outlook}</p>
+                    <p className="text-xs text-[var(--muted)] mb-3">{insight.role}</p>
+                    <p className="text-sm leading-relaxed">{insight.message}</p>
                   </div>
                 </div>
               </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="qwl-card rounded-xl p-12 text-center">
+          <Sparkles className="mx-auto text-cyan-400 mb-4" size={48} />
+          <h2 className="text-xl font-semibold mb-2">Ready for Your Insights</h2>
+          <p className="text-sm text-[var(--muted)]">Click refresh to receive personalized guidance from your quantum advisors</p>
+        </div>
+      )}
 
-              {/* Astrological Forecast */}
-              <div className="qwl-card rounded-xl p-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                  <Moon className="text-indigo-400" size={20} />
-                  <h2 className="text-lg font-semibold">Cosmic Forecast</h2>
-                </div>
-                <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <Sun className="text-yellow-400 mt-1" size={16} />
-                    <div>
-                      <p className="text-sm">{selectedReport.report.astrologicalForecast?.thisWeek}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3 mt-4">
-                    {selectedReport.report.astrologicalForecast?.keyDates?.map((date: string, i: number) => (
-                      <div key={i} className="p-2 bg-indigo-500/10 rounded-lg border border-indigo-500/20">
-                        <p className="text-xs">{getEmoji('moon')} {date}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <p className="text-sm text-cyan-400 mt-3">{getEmoji('sparkle')} {selectedReport.report.astrologicalForecast?.advice}</p>
-                </div>
-              </div>
-
-              {/* Recommendations */}
-              <div className="qwl-card rounded-xl p-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                  <Target className="text-green-400" size={20} />
-                  <h2 className="text-lg font-semibold">Action Items</h2>
-                </div>
-                <div className="space-y-2">
-                  {selectedReport.report.recommendations?.map((rec: string, i: number) => (
-                    <div key={i} className="flex items-start gap-3 p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-                      <CheckCircle className="text-green-400 mt-0.5" size={16} />
-                      <p className="text-sm">{rec}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Risk Assessment */}
-              <div className="qwl-card rounded-xl p-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                  <AlertCircle className="text-orange-400" size={20} />
-                  <h2 className="text-lg font-semibold">Risk Assessment</h2>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-1">Current Risk Level</p>
-                    <p className="text-lg font-semibold text-orange-400">{selectedReport.report.riskAssessment?.currentRisk}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-2">Key Concerns</p>
-                    <div className="space-y-1">
-                      {selectedReport.report.riskAssessment?.concerns?.map((concern: string, i: number) => (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className="text-orange-400">•</span>
-                          <p className="text-sm">{concern}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mt-4 p-3 bg-orange-500/10 rounded-lg border border-orange-500/20">
-                    <p className="text-sm">{getEmoji('warning')} {selectedReport.report.riskAssessment?.mitigation}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Week Ahead */}
-              <div className="qwl-card rounded-xl p-6 animate-fade-in">
-                <div className="flex items-center gap-2 mb-4">
-                  <Clock className="text-blue-400" size={20} />
-                  <h2 className="text-lg font-semibold">Week Ahead</h2>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-[var(--muted)] mb-2">Watch List</p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                      {selectedReport.report.weekAhead?.watchList?.map((item: string, i: number) => (
-                        <div key={i} className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                          <p className="text-xs">{getEmoji('info')} {item}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-xs text-[var(--muted)] mb-2">Key Levels</p>
-                    <div className="flex gap-4">
-                      <div className="flex items-center gap-2">
-                        <span>{getEmoji('chart')}</span>
-                        <span className="text-sm">BTC: {selectedReport.report.weekAhead?.keyLevels?.btc}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span>{getEmoji('chart')}</span>
-                        <span className="text-sm">ETH: {selectedReport.report.weekAhead?.keyLevels?.eth}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-4 p-3 bg-gradient-to-r from-cyan-500/10 to-blue-500/10 rounded-lg border border-cyan-500/20">
-                    <p className="text-sm font-semibold">{getEmoji('target')} Focus: {selectedReport.report.weekAhead?.focus}</p>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="qwl-card rounded-xl p-12 text-center">
-              <Sparkles className="mx-auto text-cyan-400 mb-4" size={48} />
-              <h2 className="text-xl font-semibold mb-2">No Report Selected</h2>
-              <p className="text-sm text-[var(--muted)]">Generate your first weekly insight to get started</p>
-              <button
-                onClick={generateNewReport}
-                className="mt-6 px-6 py-3 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all"
-              >
-                {getEmoji('sparkle')} Generate Your First Report
-              </button>
+      {/* Personal Intentions & Goals */}
+      {profile.intention && (
+        <div className="qwl-card rounded-xl p-6 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Compass className="text-purple-400" size={20} />
+            Your Quantum Wealth Journey
+          </h3>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-[var(--muted)] mb-1">Primary Intention</p>
+              <p className="text-sm">{profile.intention}</p>
             </div>
-          )}
+            {profile.biggestChallenge && (
+              <div>
+                <p className="text-xs text-[var(--muted)] mb-1">Current Challenge</p>
+                <p className="text-sm">{profile.biggestChallenge}</p>
+              </div>
+            )}
+            {profile.idealOutcome && (
+              <div>
+                <p className="text-xs text-[var(--muted)] mb-1">Vision</p>
+                <p className="text-sm">{profile.idealOutcome}</p>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Market Context */}
+      <div className="qwl-card rounded-xl p-6">
+        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+          <TrendingUp className="text-green-400" size={20} />
+          Current Quantum Field Status
+        </h3>
+        <div className="grid grid-cols-3 gap-4">
+          <div className="text-center p-3 bg-white/5 rounded-lg">
+            <p className="text-xs text-[var(--muted)] mb-1">BTC Energy</p>
+            <p className="text-lg font-bold">${marketData.btc?.toLocaleString() || "---"}</p>
+            <p className={`text-sm ${marketData.btcChange > 0 ? "text-green-400" : "text-red-400"}`}>
+              {marketData.btcChange > 0 ? "+" : ""}{marketData.btcChange?.toFixed(2) || "0"}%
+            </p>
+          </div>
+          <div className="text-center p-3 bg-white/5 rounded-lg">
+            <p className="text-xs text-[var(--muted)] mb-1">ETH Flow</p>
+            <p className="text-lg font-bold">${marketData.eth?.toLocaleString() || "---"}</p>
+            <p className={`text-sm ${marketData.ethChange > 0 ? "text-green-400" : "text-red-400"}`}>
+              {marketData.ethChange > 0 ? "+" : ""}{marketData.ethChange?.toFixed(2) || "0"}%
+            </p>
+          </div>
+          <div className="text-center p-3 bg-white/5 rounded-lg">
+            <p className="text-xs text-[var(--muted)] mb-1">Field Trend</p>
+            <p className="text-lg font-bold capitalize">{marketData.trend || "Neutral"}</p>
+            <div className="flex justify-center mt-1">
+              {marketData.trend === "bullish" ? (
+                <TrendingUp className="text-green-400" size={16} />
+              ) : marketData.trend === "bearish" ? (
+                <TrendingUp className="text-red-400 rotate-180" size={16} />
+              ) : (
+                <ChevronRight className="text-yellow-400" size={16} />
+              )}
+            </div>
+          </div>
         </div>
       </div>
     </div>

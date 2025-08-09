@@ -1,224 +1,213 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
-import { getBaseUrl } from "@/lib/config";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// Agent personalities providing grounded, actionable insights
-function getAgentPersonality(profile: any, agentType: string, marketData?: any) {
-  const basePersonality = `You are a Quantum Wealth Lab financial advisor specializing in ${agentType}.
-    
-    User Profile:
-    - Name: ${profile.name || 'User'}
-    - Portfolio Size: ${profile.portfolioSize || 'Not specified'}
-    - Risk Tolerance: ${profile.riskTolerance || 'moderate'}
-    - Experience: ${profile.experience || 'beginner'}
-    - Investment Goals: ${profile.investmentGoals?.join(', ') || 'wealth growth'}
-    - Time Horizon: ${profile.timeHorizon || 'medium-term'}
-    - Trading Style: ${profile.tradingStyle || 'balanced'}
-    - Current Holdings: ${profile.currentHoldings?.map((h: any) => `${h.symbol}: ${h.amount}`).join(', ') || 'None specified'}
-    - Biggest Challenge: ${profile.biggestChallenge || 'Not specified'}
-    - Ideal Outcome: ${profile.idealOutcome || 'Financial freedom'}
-    
-    Current Market:
-    - BTC: $${marketData?.btc || 'N/A'} (${marketData?.btcChange || 'N/A'}%)
-    - ETH: $${marketData?.eth || 'N/A'} (${marketData?.ethChange || 'N/A'}%)
-    - Market Trend: ${marketData?.trend || 'Unknown'}
-    
-    Instructions:
-    - Provide specific, actionable advice based on their actual portfolio and goals
-    - Reference real market conditions and specific price levels
-    - Give concrete recommendations with reasoning
-    - Include risk warnings where appropriate
-    - Be direct and practical, avoid vague mystical language`;
-
-  const agentPersonalities: { [key: string]: string } = {
-    overview: `${basePersonality}
-      Focus: Daily market analysis and portfolio performance.
-      Provide:
-      1. Specific price levels to watch for their holdings
-      2. Market trend analysis with support/resistance levels
-      3. 3 actionable steps for today based on current conditions
-      4. Risk alerts for their specific positions`,
-    
-    portfolio: `${basePersonality}
-      Focus: Portfolio optimization and rebalancing recommendations.
-      Analyze:
-      1. Current allocation vs recommended based on risk profile
-      2. Specific coins to add/reduce with target percentages
-      3. Entry/exit points for positions
-      4. Correlation analysis between holdings
-      5. Performance metrics and improvement suggestions`,
-    
-    research: `${basePersonality}
-      Focus: Deep market research and opportunity identification.
-      Research:
-      1. Emerging trends relevant to their investment style
-      2. Detailed analysis of their current holdings
-      3. New opportunities matching their criteria
-      4. Red flags or risks in current positions
-      5. Macro factors affecting their portfolio`,
-    
-    trading: `${basePersonality}
-      Focus: Technical analysis and trade execution guidance.
-      Provide:
-      1. Specific trade setups for their watchlist
-      2. Entry, stop-loss, and take-profit levels
-      3. Position sizing based on their portfolio size
-      4. Risk/reward analysis for each trade
-      5. Market timing based on technical indicators`,
-    
-    risk: `${basePersonality}
-      Focus: Risk management and portfolio protection.
-      Assess:
-      1. Current portfolio risk metrics (VaR, Sharpe ratio)
-      2. Concentration risk in specific sectors/coins
-      3. Hedging strategies appropriate for their level
-      4. Stop-loss recommendations for each position
-      5. Scenario analysis for market corrections`,
-    
-    tax: `${basePersonality}
-      Focus: Tax optimization and reporting guidance.
-      Consider:
-      1. Tax-loss harvesting opportunities
-      2. Long vs short-term capital gains planning
-      3. Record-keeping recommendations
-      4. Jurisdiction-specific considerations
-      5. Year-end tax strategies`
-  };
-
-  return agentPersonalities[agentType] || basePersonality;
-}
+// Different AI agent personalities for diverse perspectives
+const AGENTS = {
+  quantum: {
+    name: "Quantum Oracle",
+    role: "Consciousness & Energy Analyst",
+    style: "Mystical, intuitive, focuses on energy patterns and consciousness alignment",
+    emoji: "🔮"
+  },
+  astro: {
+    name: "Cosmic Navigator", 
+    role: "Astrological Wealth Strategist",
+    style: "Uses planetary alignments, zodiac insights, and cosmic timing for financial guidance",
+    emoji: "🌟"
+  },
+  technical: {
+    name: "Alpha Seeker",
+    role: "Technical & Market Analyst",
+    style: "Data-driven, analytical, focuses on charts, patterns, and market dynamics",
+    emoji: "📊"
+  },
+  risk: {
+    name: "Guardian",
+    role: "Risk & Protection Specialist",
+    style: "Conservative, protective, focuses on preserving wealth and managing downside",
+    emoji: "🛡️"
+  },
+  growth: {
+    name: "Abundance Amplifier",
+    role: "Growth & Opportunity Hunter",
+    style: "Optimistic, aggressive, seeks high-growth opportunities and exponential returns",
+    emoji: "🚀"
+  },
+  wisdom: {
+    name: "Sage Advisor",
+    role: "Holistic Wealth Philosopher",
+    style: "Wise, balanced, integrates spiritual and material wealth perspectives",
+    emoji: "🦉"
+  }
+};
 
 export async function POST(req: Request) {
   try {
-    const { profile, agentType, prompt, context } = await req.json();
-    
-    // Fetch current market data
-    let marketData: any = {};
-    try {
-      const pricesRes = await fetch(`${getBaseUrl()}/api/crypto/prices`);
-      if (pricesRes.ok) {
-        const prices = await pricesRes.json();
-        marketData = {
-          btc: prices.BTC?.price,
-          btcChange: prices.BTC?.change24h,
-          eth: prices.ETH?.price,
-          ethChange: prices.ETH?.change24h,
-          trend: prices.BTC?.change24h > 0 && prices.ETH?.change24h > 0 ? "bullish" : "mixed"
-        };
-      }
-    } catch (e) {
-      console.error("Market data fetch error:", e);
-    }
-    
-    // Create comprehensive user context
-    const userContext = {
-      ...profile,
-      currentDate: new Date().toISOString(),
-      marketContext: { ...marketData, ...context?.market },
-      portfolioContext: context?.portfolio || {},
-      recentActivity: profile.insights?.slice(-3) || []
-    };
-    
-    // Fallback for no API key with specific recommendations
-    if (!process.env.OPENAI_API_KEY) {
-      const fallbackResponses: { [key: string]: any } = {
-        overview: {
-          marketSummary: `BTC at $${marketData.btc || '100,000'}, ${marketData.btcChange > 0 ? 'up' : 'down'} ${Math.abs(marketData.btcChange || 1)}% today`,
-          actionItems: [
-            "Review your stop-losses given current volatility",
-            "Consider rebalancing if any position exceeds 30% of portfolio",
-            "Set price alerts at key support/resistance levels"
-          ],
-          watchList: ["Monitor BTC support at $95,000", "ETH resistance at $4,000", "Watch DXY for risk-off signals"],
-          riskAlert: "Elevated volatility expected around upcoming Fed meeting"
-        },
-        portfolio: {
-          allocation: "Your current allocation may be overweight in large caps",
-          recommendations: [
-            "Consider adding 10% to stablecoins for dry powder",
-            "Reduce BTC exposure if over 40% of portfolio",
-            "Add small cap exposure (5-10%) for higher beta"
-          ],
-          rebalanceTargets: { BTC: "35%", ETH: "25%", Stables: "20%", Alts: "20%" }
-        },
-        research: {
-          trending: ["AI tokens showing strength", "L2s gaining adoption", "RWA narrative building"],
-          analysis: "Macro conditions suggest defensive positioning",
-          opportunities: ["DeFi blue chips at support", "Gaming tokens oversold", "Privacy coins accumulating"]
-        }
-      };
-      
-      return NextResponse.json({
-        response: fallbackResponses[agentType] || fallbackResponses.overview,
-        agentType,
-        marketData,
-        timestamp: new Date().toISOString()
+    const { profile, portfolio, marketData, agentType = "all", question } = await req.json();
+
+    if (!openai.apiKey) {
+      return NextResponse.json({ 
+        error: "AI service not configured",
+        insights: generateFallbackInsights(profile, agentType)
       });
     }
-    
-    // Generate response with OpenAI
-    const systemPrompt = getAgentPersonality(profile, agentType, marketData);
-    
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { 
-          role: "user", 
-          content: `Current Context:
-          - User Holdings: ${JSON.stringify(userContext.portfolioContext)}
-          - Market Data: ${JSON.stringify(marketData)}
-          - User Query: ${prompt || `Generate specific ${agentType} analysis with actionable recommendations`}
-          
-          Provide a detailed response with:
-          1. Specific price levels and percentages
-          2. Clear action items with reasoning
-          3. Risk warnings where appropriate
-          4. Timeline for recommendations
-          5. Metrics to track success
-          
-          Return ONLY valid JSON without markdown formatting.`
-        }
-      ],
-      temperature: 0.7, // Lower temperature for more consistent financial advice
-      max_tokens: 1000,
-    });
-    
-    // Clean response
-    let content = completion.choices[0].message.content || "{}";
-    if (content.includes("```")) {
-      content = content.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim();
+
+    // Build comprehensive context about the user
+    const userContext = `
+User Profile:
+- Name: ${profile.name || "User"}
+- Birth Date: ${profile.birthDate || "Unknown"}
+- Birth Time: ${profile.birthTime || "Unknown"}
+- Birth Place: ${profile.birthPlace || "Unknown"}
+
+Astrological Profile:
+- Sun Sign: ${profile.sunSign || "Unknown"}
+- Moon Sign: ${profile.moonSign || "Unknown"}
+- Rising Sign: ${profile.risingSign || "Unknown"}
+- Element: ${profile.elemental?.element || "Unknown"}
+- Archetype: ${profile.quantumProfile?.archetype || "Unknown"}
+- Wealth Style: ${profile.quantumProfile?.wealthStyle || "Unknown"}
+
+Investment Profile:
+- Portfolio Size: ${profile.portfolioSize || "Unknown"}
+- Experience: ${profile.experience || "Unknown"}
+- Risk Tolerance: ${profile.riskTolerance || "Unknown"}
+- Time Horizon: ${profile.timeHorizon || "Unknown"}
+
+Personal Insights:
+- Primary Intention: ${profile.intention || "Not specified"}
+- Biggest Challenge: ${profile.biggestChallenge || "Not specified"}
+- Ideal Outcome: ${profile.idealOutcome || "Not specified"}
+
+Current Portfolio:
+${portfolio && portfolio.length > 0 ? 
+  portfolio.map((h: any) => `- ${h.symbol}: ${h.amount} (${h.value})`).join('\n') : 
+  "No holdings yet"}
+
+Market Context:
+- BTC: $${marketData?.btc || "Unknown"} (${marketData?.btcChange || 0}%)
+- ETH: $${marketData?.eth || "Unknown"} (${marketData?.ethChange || 0}%)
+- Market Trend: ${marketData?.trend || "Unknown"}
+`;
+
+    // Select which agents to use
+    const agentsToUse = agentType === "all" ? Object.keys(AGENTS) : [agentType];
+    const insights: any = {};
+
+    // Generate insights from each agent
+    for (const agent of agentsToUse) {
+      const agentInfo = AGENTS[agent as keyof typeof AGENTS];
+      if (!agentInfo) continue;
+
+      const prompt = `You are ${agentInfo.name}, a ${agentInfo.role}. Your communication style is: ${agentInfo.style}.
+
+${userContext}
+
+${question ? `The user asks: "${question}"` : `Provide personalized insights for this user.`}
+
+Based on ALL the user's information above, provide HIGHLY PERSONALIZED insights that:
+1. Reference their specific astrological signs and what it means for them
+2. Address their stated challenges and intentions directly
+3. Consider their risk tolerance and experience level
+4. Align with their wealth style and archetype
+5. Take into account their time horizon and portfolio size
+6. Reference current market conditions
+
+Your response should be:
+- Specific to THIS person (use their name if provided)
+- Reference their unique combination of traits
+- Actionable and practical
+- Written in your unique style as ${agentInfo.name}
+- About 3-4 sentences
+- Feel personal, not generic
+
+Remember: You're speaking directly to ${profile.name || "this specific person"} who is a ${profile.sunSign} sun, ${profile.moonSign} moon, ${profile.risingSign} rising, with ${profile.experience} experience and ${profile.riskTolerance} risk tolerance.`;
+
+      try {
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.8,
+          max_tokens: 200,
+        });
+
+        insights[agent] = {
+          agent: agentInfo.name,
+          role: agentInfo.role,
+          emoji: agentInfo.emoji,
+          message: completion.choices[0]?.message?.content || "Unable to generate insight"
+        };
+      } catch (error) {
+        console.error(`Agent ${agent} failed:`, error);
+        insights[agent] = {
+          agent: agentInfo.name,
+          role: agentInfo.role,
+          emoji: agentInfo.emoji,
+          message: generateAgentFallback(agent, profile)
+        };
+      }
     }
-    
-    const response = JSON.parse(content);
-    
-    // Store insights
-    if (response.keyRecommendation) {
-      console.log(`Storing recommendation for ${profile.name}:`, response.keyRecommendation);
-    }
-    
-    return NextResponse.json({
-      response,
-      agentType,
-      marketData,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error("AI agent error:", error);
-    
-    return NextResponse.json({
-      response: {
-        message: "Analysis system temporarily unavailable",
-        fallback: true,
-        suggestion: "Check back in a few minutes for updated insights"
+
+    // Add timestamp and metadata
+    const response = {
+      insights,
+      timestamp: new Date().toISOString(),
+      profile: {
+        name: profile.name,
+        signs: `${profile.sunSign}/${profile.moonSign}/${profile.risingSign}`,
+        element: profile.elemental?.element
       },
-      agentType: "error",
-      timestamp: new Date().toISOString()
-    });
+      marketContext: marketData
+    };
+
+    return NextResponse.json(response);
+
+  } catch (error) {
+    console.error("AI agents error:", error);
+    return NextResponse.json({ 
+      error: "Failed to generate insights",
+      insights: generateFallbackInsights({}, "all")
+    }, { status: 500 });
   }
+}
+
+function generateAgentFallback(agentType: string, profile: any): string {
+  const messages: Record<string, string> = {
+    quantum: `Your ${profile.elemental?.element || "unique"} energy is particularly strong right now. Focus on aligning your investment decisions with your inner knowing - your ${profile.sunSign || "natural"} intuition is heightened.`,
+    
+    astro: `As a ${profile.sunSign || "cosmic"} sun with ${profile.moonSign || "intuitive"} moon, this period favors ${profile.riskTolerance === "conservative" ? "steady accumulation" : "calculated risks"}. Your ${profile.risingSign || "ascending"} rising suggests timing is crucial.`,
+    
+    technical: `Based on your ${profile.experience || "current"} experience level and ${profile.portfolioSize || "portfolio"}, consider dollar-cost averaging into quality assets. The market structure supports your ${profile.timeHorizon || "investment"} timeline.`,
+    
+    risk: `With your ${profile.riskTolerance || "stated"} risk tolerance, maintain protective stops at key levels. Your ${profile.biggestChallenge || "challenges"} can be mitigated through proper position sizing.`,
+    
+    growth: `Your ${profile.intention || "wealth goals"} align perfectly with emerging opportunities in the quantum field. As a ${profile.quantumProfile?.archetype || "natural"} archetype, you're positioned for exponential growth.`,
+    
+    wisdom: `Remember, ${profile.name || "dear soul"}, true wealth encompasses both material and spiritual abundance. Your journey as a ${profile.sunSign || "unique"} soul is about balancing both realms.`
+  };
+
+  return messages[agentType] || "Trust your inner guidance and stay aligned with your highest vision.";
+}
+
+function generateFallbackInsights(profile: any, agentType: string): any {
+  const fallback: any = {};
+  const agents = agentType === "all" ? Object.keys(AGENTS) : [agentType];
+  
+  agents.forEach(agent => {
+    const agentInfo = AGENTS[agent as keyof typeof AGENTS];
+    if (agentInfo) {
+      fallback[agent] = {
+        agent: agentInfo.name,
+        role: agentInfo.role,
+        emoji: agentInfo.emoji,
+        message: generateAgentFallback(agent, profile)
+      };
+    }
+  });
+  
+  return fallback;
 }
