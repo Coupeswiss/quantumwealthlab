@@ -18,11 +18,12 @@ import {
   getSaturnSignFromEphemeris,
   approximateMoonSign 
 } from "@/lib/ephemeris-data";
-import { 
-  isProkeralaConfigured, 
-  getProkeralaBirthChart, 
+import {
+  isProkeralaConfigured,
+  getProkeralaBirthChart,
   getProkeralaPlanetPositions,
-  getProkeralaPanchang 
+  getProkeralaPanchang,
+  getProkeralaWesternChart
 } from "@/lib/prokerala-api";
 
 // Accurate zodiac sign calculation based on birth date
@@ -298,18 +299,34 @@ export async function POST(req: Request) {
         
         console.log('Calling Prokerala API with:', { isoDateTime, latitude, longitude });
         
-        // Get accurate data from Prokerala
-        const [birthChart, planetPositions] = await Promise.all([
-          getProkeralaBirthChart(isoDateTime, latitude, longitude),
-          getProkeralaPlanetPositions(isoDateTime, latitude, longitude)
+        // Get accurate data from Prokerala - try Western API for more reliable data
+        const [westernChart, planetPositions, birthChart] = await Promise.all([
+          getProkeralaWesternChart(isoDateTime, latitude, longitude).catch(() => null),
+          getProkeralaPlanetPositions(isoDateTime, latitude, longitude).catch(() => null),
+          getProkeralaBirthChart(isoDateTime, latitude, longitude).catch(() => null)
         ]);
         
-        prokeralaData = { birthChart, planetPositions };
+        prokeralaData = { westernChart, birthChart, planetPositions };
         
-        // Extract signs from Prokerala response
-        sunSign = birthChart.data?.sun_sign || birthChart?.sun_sign || calculateSunSign(date);
-        moonSign = birthChart.data?.moon_sign || birthChart?.moon_sign || calculateMoonSign(date, birthTime);
-        risingSign = birthChart.data?.rising_sign || birthChart?.rising_sign || birthChart.data?.ascendant || birthChart?.ascendant || calculateRisingSign(date, birthTime, latitude);
+        // Extract signs from Prokerala response - prioritize Western chart for accuracy
+        if (westernChart?.extracted) {
+          sunSign = westernChart.extracted.sunSign || calculateSunSign(date);
+          moonSign = westernChart.extracted.moonSign || calculateMoonSign(date, birthTime);
+          risingSign = westernChart.extracted.risingSign || calculateRisingSign(date, birthTime, latitude);
+        } else if (planetPositions?.extracted) {
+          sunSign = planetPositions.extracted.sunSign || calculateSunSign(date);
+          moonSign = planetPositions.extracted.moonSign || calculateMoonSign(date, birthTime);
+          risingSign = planetPositions.extracted.risingSign || calculateRisingSign(date, birthTime, latitude);
+        } else if (birthChart?.extracted) {
+          sunSign = birthChart.extracted.sunSign || calculateSunSign(date);
+          moonSign = birthChart.extracted.moonSign || calculateMoonSign(date, birthTime);
+          risingSign = birthChart.extracted.risingSign || calculateRisingSign(date, birthTime, latitude);
+        } else {
+          // Fallback to local calculations
+          sunSign = calculateSunSign(date);
+          moonSign = calculateMoonSign(date, birthTime);
+          risingSign = calculateRisingSign(date, birthTime, latitude);
+        }
         
         console.log('Prokerala API response - Sun:', sunSign, 'Moon:', moonSign, 'Rising:', risingSign);
       } catch (error) {
@@ -339,6 +356,22 @@ export async function POST(req: Request) {
     const sunData = ZODIAC_DATABASE[sunSign];
     const moonData = ZODIAC_DATABASE[moonSign];
     const risingData = ZODIAC_DATABASE[risingSign];
+    
+    // Determine element based on sun sign (most important for overall element)
+    const getElement = (sign: string): string => {
+      const fireSigns = ['Aries', 'Leo', 'Sagittarius'];
+      const earthSigns = ['Taurus', 'Virgo', 'Capricorn'];
+      const airSigns = ['Gemini', 'Libra', 'Aquarius'];
+      const waterSigns = ['Cancer', 'Scorpio', 'Pisces'];
+      
+      if (fireSigns.includes(sign)) return 'Fire';
+      if (earthSigns.includes(sign)) return 'Earth';
+      if (airSigns.includes(sign)) return 'Air';
+      if (waterSigns.includes(sign)) return 'Water';
+      return 'Unknown';
+    };
+    
+    const element = getElement(sunSign);
     
     // Calculate current transits with enhanced accuracy
     const currentDate = new Date();
@@ -447,6 +480,7 @@ export async function POST(req: Request) {
         planetPositions: prokeralaData.planetPositions?.data
       } : { available: false },
       elemental: {
+        element: element,  // Primary element based on sun sign
         dominant: getDominantElement(profile.elements),
         balance: profile.elements,
         qualities: {
