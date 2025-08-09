@@ -279,12 +279,24 @@ export async function POST(req: Request) {
     let risingSign: string;
     let prokeralaData: any = null;
     
-    if (isProkeralaConfigured() && latitude && longitude && birthTime) {
+    // Check if Prokerala is configured
+    const prokeralaConfigured = isProkeralaConfigured();
+    console.log('Prokerala configured:', prokeralaConfigured, {
+      hasClientId: !!process.env.PROKERALA_CLIENT_ID,
+      hasClientSecret: !!process.env.PROKERALA_CLIENT_SECRET,
+      latitude,
+      longitude,
+      birthTime
+    });
+    
+    if (prokeralaConfigured && latitude && longitude && birthTime) {
       try {
         // Format datetime for Prokerala API (ISO 8601 format)
         const hours = birthTime.includes(':') ? birthTime.split(':')[0] : '12';
         const minutes = birthTime.includes(':') ? birthTime.split(':')[1] : '00';
         const isoDateTime = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}T${hours.padStart(2, '0')}:${minutes.padStart(2, '0')}:00+05:30`;
+        
+        console.log('Calling Prokerala API with:', { isoDateTime, latitude, longitude });
         
         // Get accurate data from Prokerala
         const [birthChart, planetPositions] = await Promise.all([
@@ -295,11 +307,11 @@ export async function POST(req: Request) {
         prokeralaData = { birthChart, planetPositions };
         
         // Extract signs from Prokerala response
-        sunSign = birthChart.data?.sun_sign || calculateSunSign(date);
-        moonSign = birthChart.data?.moon_sign || calculateMoonSign(date, birthTime);
-        risingSign = birthChart.data?.rising_sign || birthChart.data?.ascendant || calculateRisingSign(date, birthTime, latitude);
+        sunSign = birthChart.data?.sun_sign || birthChart?.sun_sign || calculateSunSign(date);
+        moonSign = birthChart.data?.moon_sign || birthChart?.moon_sign || calculateMoonSign(date, birthTime);
+        risingSign = birthChart.data?.rising_sign || birthChart?.rising_sign || birthChart.data?.ascendant || birthChart?.ascendant || calculateRisingSign(date, birthTime, latitude);
         
-        console.log('Using Prokerala API for accurate calculations');
+        console.log('Prokerala API response - Sun:', sunSign, 'Moon:', moonSign, 'Rising:', risingSign);
       } catch (error) {
         console.error('Prokerala API failed, falling back to local calculations:', error);
         // Fall back to local calculations
@@ -308,6 +320,7 @@ export async function POST(req: Request) {
         risingSign = calculateRisingSign(date, birthTime, latitude);
       }
     } else {
+      console.log('Using local calculations (Prokerala not configured or missing data)');
       // Use local calculations if Prokerala is not configured
       sunSign = calculateSunSign(date);
       moonSign = calculateMoonSign(date, birthTime);

@@ -201,5 +201,9 @@ export async function getProkeralaNumerology(
 
 // Check if Prokerala is configured
 export function isProkeralaConfigured(): boolean {
-  return !!(process.env.PROKERALA_CLIENT_ID && process.env.PROKERALA_CLIENT_SECRET);
+  const configured = !!(process.env.PROKERALA_CLIENT_ID && process.env.PROKERALA_CLIENT_SECRET);
+  if (!configured) {
+    console.log('Prokerala not configured. Set PROKERALA_CLIENT_ID and PROKERALA_CLIENT_SECRET environment variables.');
+  }
+  return configured;
 }

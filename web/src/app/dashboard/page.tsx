@@ -34,10 +34,11 @@ export default function DashboardHome() {
   const [profile, setProfile] = useState<any>({});
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
-  // Update time every second for live feel
+  // Update time every second for live feel - only on client to avoid hydration issues
   useEffect(() => {
+    setCurrentTime(new Date());
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
@@ -235,7 +236,10 @@ export default function DashboardHome() {
             <span className="qwl-text-gradient">Quantum Dashboard</span>
           </h1>
           <p className="text-sm text-[var(--muted)] mt-1">
-            {profile?.name ? `Welcome back, ${profile.name}` : "Your Personal Field"} • {currentTime.toLocaleDateString()} • {currentTime.toLocaleTimeString()}
+            {profile?.name ? `Welcome back, ${profile.name}` : "Your Personal Field"}
+            {currentTime && (
+              <> • {currentTime.toLocaleDateString()} • {currentTime.toLocaleTimeString()}</>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 px-4 py-2 rounded-full border border-green-500/40 bg-green-500/10">
