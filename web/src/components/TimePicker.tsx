@@ -1,5 +1,6 @@
 "use client";
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Clock, ChevronUp, ChevronDown } from "lucide-react";
 
 interface TimePickerProps {
@@ -15,7 +16,8 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
   const [hour, setHour] = useState<number>(12);
   const [minute, setMinute] = useState<number>(0);
   const [period, setPeriod] = useState<'AM' | 'PM'>('AM');
-  const containerRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0, width: 0 });
 
   // Parse the value prop (HH:MM format)
   useEffect(() => {
@@ -30,24 +32,44 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
     }
   }, [value]);
 
-  // Close on outside click
+  // Update position when opened
+  useEffect(() => {
+    if (isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + window.scrollY + 8,
+        left: rect.left + window.scrollX,
+        width: rect.width
+      });
+    }
+  }, [isOpen]);
+
+  // Close on outside click or escape
   useEffect(() => {
     if (!isOpen) return;
-    
-    function handleClickOutside(event: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
+
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (!buttonRef.current?.contains(target)) {
+        const portalContent = document.getElementById('time-picker-portal');
+        if (portalContent && !portalContent.contains(target)) {
+          setIsOpen(false);
+        }
       }
-    }
-    
-    // Delay to avoid closing immediately on open
-    const timer = setTimeout(() => {
-      document.addEventListener("mousedown", handleClickOutside);
-    }, 0);
-    
+    };
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false);
+    };
+
+    setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('keydown', handleEscape);
+    }, 10);
+
     return () => {
-      clearTimeout(timer);
-      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
     };
   }, [isOpen]);
 
@@ -88,12 +110,13 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
   const displayValue = value ? formatDisplayTime(hour, minute, period) : placeholder;
 
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       {label && (
         <label className="text-xs text-[var(--muted)] block mb-1">{label}</label>
       )}
       
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={`
@@ -109,12 +132,19 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
         <Clock size={16} className="text-cyan-400" />
       </button>
 
-      {isOpen && (
-        <div 
-          className="absolute mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
-          style={{ minWidth: '280px', zIndex: 999999 }}
+      {isOpen && typeof window !== 'undefined' && createPortal(
+        <div
+          id="time-picker-portal"
+          className="fixed p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50"
+          style={{
+            top: `${position.top}px`,
+            left: `${position.left}px`,
+            width: `${Math.max(position.width, 280)}px`,
+            zIndex: 2147483647,
+            backdropFilter: 'blur(12px)',
+          }}
         >
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4 justify-center">
             {/* Hour */}
             <div className="flex flex-col items-center">
               <button
@@ -200,7 +230,8 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
               Set Time
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
