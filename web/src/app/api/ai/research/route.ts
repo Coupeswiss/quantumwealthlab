@@ -302,7 +302,7 @@ LATEST MARKET INTELLIGENCE:
 ${webResults.summary}
 
 Recent Headlines:
-${webResults.sources.map(s => `- ${s}`).join('\n')}
+${webResults.sources.map((s: string) => `- ${s}`).join('\n')}
 ` : ''}
 
 INSTRUCTIONS FOR YOUR RESPONSE:
