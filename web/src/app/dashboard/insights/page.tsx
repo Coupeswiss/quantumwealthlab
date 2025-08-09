@@ -160,7 +160,7 @@ export default function InsightsPage() {
         const [title, ...rest] = section.split('\n');
         return (
           <div key={idx} className="mb-6">
-            <h3 className="text-lg font-semibold mb-2 text-purple-400">
+            <h3 className="text-lg font-semibold mb-2 text-cyan-400">
               {title}
             </h3>
             <p className="text-gray-300 leading-relaxed whitespace-pre-wrap">
@@ -197,7 +197,7 @@ export default function InsightsPage() {
             Back to Dashboard
           </button>
           <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-purple-500" />
+            <Sparkles className="w-6 h-6 text-cyan-500" />
             <h1 className="text-2xl font-bold">Quantum Insights</h1>
           </div>
         </div>
@@ -226,7 +226,7 @@ export default function InsightsPage() {
             {!profile.name && (
               <button
                 onClick={() => router.push('/dashboard/profile')}
-                className="text-xs px-3 py-1 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                className="text-xs px-3 py-1 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
               >
                 Complete Profile
               </button>
@@ -239,7 +239,7 @@ export default function InsightsPage() {
           <div className="bg-gray-900 rounded-xl p-6">
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <Calendar className="w-6 h-6 text-purple-500" />
+                <Calendar className="w-6 h-6 text-cyan-500" />
                 <h2 className="text-xl font-semibold">Weekly Report</h2>
               </div>
               <div className="flex items-center gap-2">
@@ -260,7 +260,7 @@ export default function InsightsPage() {
             
             {loading ? (
               <div className="flex flex-col items-center justify-center py-12">
-                <div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4" />
+                <div className="w-12 h-12 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-4" />
                 <p className="text-gray-400">Analyzing your portfolio...</p>
                 <p className="text-xs text-gray-500 mt-2">Generating personalized insights</p>
               </div>
@@ -278,7 +278,7 @@ export default function InsightsPage() {
                     <p className="text-gray-400 mb-4">Add holdings to generate your report</p>
                     <button
                       onClick={() => router.push('/dashboard/portfolio')}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                      className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
                     >
                       Add Holdings
                     </button>
@@ -288,7 +288,7 @@ export default function InsightsPage() {
                     <p className="text-gray-400 mb-4">Ready to generate your report</p>
                     <button
                       onClick={generateWeeklyReport}
-                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded-lg transition-colors"
+                      className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 rounded-lg transition-colors"
                     >
                       Generate Report
                     </button>
@@ -326,7 +326,7 @@ export default function InsightsPage() {
           {/* AI Research Chat */}
           <div className="bg-gray-900 rounded-xl p-6 flex flex-col">
             <div className="flex items-center gap-3 mb-6">
-              <Brain className="w-6 h-6 text-purple-500" />
+              <Brain className="w-6 h-6 text-cyan-500" />
               <h2 className="text-xl font-semibold">Research Assistant</h2>
               <span className="text-xs text-gray-500 ml-auto">
                 {portfolio.length > 0 ? 'Portfolio-aware' : 'General mode'}
@@ -355,7 +355,7 @@ export default function InsightsPage() {
                     <div
                       className={`max-w-[85%] rounded-lg p-3 ${
                         msg.role === 'user'
-                          ? 'bg-purple-600 text-white'
+                          ? 'bg-cyan-600 text-white'
                           : 'bg-gray-800 text-gray-200'
                       }`}
                     >
@@ -386,9 +386,9 @@ export default function InsightsPage() {
                 <div className="flex justify-start">
                   <div className="bg-gray-800 rounded-lg p-3">
                     <div className="flex gap-2">
-                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" />
-                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce delay-100" />
-                      <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce delay-200" />
+                      <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce" />
+                      <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-100" />
+                      <div className="w-2 h-2 bg-cyan-500 rounded-full animate-bounce delay-200" />
                     </div>
                   </div>
                 </div>
@@ -406,13 +406,13 @@ export default function InsightsPage() {
                   "Ask about your holdings, market trends, or strategies..." :
                   "Ask about crypto markets, trends, or investment strategies..."
                 }
-                className="flex-1 bg-gray-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex-1 bg-gray-800 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 disabled={chatLoading}
               />
               <button
                 onClick={sendChatMessage}
                 disabled={!chatInput.trim() || chatLoading}
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors"
+                className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 disabled:bg-gray-700 disabled:cursor-not-allowed rounded-lg transition-colors"
               >
                 <Send className="w-4 h-4" />
               </button>
@@ -455,11 +455,11 @@ export default function InsightsPage() {
           border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(139, 92, 246, 0.3);
+          background: rgba(6, 182, 212, 0.3);
           border-radius: 3px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: rgba(139, 92, 246, 0.5);
+          background: rgba(6, 182, 212, 0.5);
         }
       `}</style>
     </div>
