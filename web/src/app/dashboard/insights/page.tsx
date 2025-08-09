@@ -1,352 +1,384 @@
 "use client";
-import { useState, useEffect } from "react";
-import { Sparkles, Brain, Shield, TrendingUp, Eye, Compass, MessageCircle, RefreshCw, User, Calendar, DollarSign, Target, Zap, Moon, Sun, Star, ChevronRight } from "lucide-react";
 
-interface AgentInsight {
-  agent: string;
-  role: string;
-  emoji: string;
-  message: string;
-}
-
-interface PersonalizedInsights {
-  insights: Record<string, AgentInsight>;
-  timestamp: string;
-  profile: {
-    name: string;
-    signs: string;
-    element: string;
-  };
-  marketContext: any;
-}
+import { useState, useEffect, useRef } from "react";
+import { ArrowUpIcon, ArrowDownIcon, TrendingUpIcon, ChartBarIcon, SparklesIcon, SearchIcon, SendIcon } from "lucide-react";
 
 export default function InsightsPage() {
-  const [insights, setInsights] = useState<PersonalizedInsights | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [profile, setProfile] = useState<any>({});
+  const [profile, setProfile] = useState<any>(null);
   const [portfolio, setPortfolio] = useState<any[]>([]);
-  const [marketData, setMarketData] = useState<any>({});
-  const [selectedAgent, setSelectedAgent] = useState<string>("all");
-  const [question, setQuestion] = useState("");
-  const [askingQuestion, setAskingQuestion] = useState(false);
+  const [weeklyAnalysis, setWeeklyAnalysis] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadUserData();
-    fetchMarketData();
-    generateInitialInsights();
+    loadData();
   }, []);
 
-  function loadUserData() {
-    // Load profile
-    const profileData = localStorage.getItem('qwl-profile');
-    if (profileData) {
-      const parsed = JSON.parse(profileData);
-      setProfile(parsed.state?.profile || {});
-    }
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatMessages]);
 
-    // Load portfolio
-    const portfolioData = localStorage.getItem('qwl-wallets');
-    if (portfolioData) {
-      const parsed = JSON.parse(portfolioData);
-      setPortfolio(parsed.state?.wallets || []);
-    }
-  }
-
-  async function fetchMarketData() {
-    try {
-      const res = await fetch('/api/crypto/prices');
-      if (res.ok) {
-        const data = await res.json();
-        setMarketData({
-          btc: data.BTC?.price,
-          btcChange: data.BTC?.change24h,
-          eth: data.ETH?.price,
-          ethChange: data.ETH?.change24h,
-          trend: data.BTC?.change24h > 0 && data.ETH?.change24h > 0 ? "bullish" : 
-                 data.BTC?.change24h < 0 && data.ETH?.change24h < 0 ? "bearish" : "mixed"
-        });
-      }
-    } catch (error) {
-      console.error("Failed to fetch market data:", error);
-    }
-  }
-
-  async function generateInitialInsights() {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/ai/agents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile,
-          portfolio,
-          marketData,
-          agentType: 'all'
-        })
-      });
+      // Load profile from localStorage
+      const savedProfile = localStorage.getItem('userProfile');
+      const profileData = savedProfile ? JSON.parse(savedProfile) : {};
+      setProfile(profileData);
 
-      if (res.ok) {
-        const data = await res.json();
-        setInsights(data);
+      // Load portfolio
+      const savedPortfolio = localStorage.getItem('portfolio');
+      const portfolioData = savedPortfolio ? JSON.parse(savedPortfolio) : [];
+      setPortfolio(portfolioData);
+
+      // Check if we have cached weekly analysis from this week
+      const cachedAnalysis = localStorage.getItem('weeklyAnalysis');
+      const cached = cachedAnalysis ? JSON.parse(cachedAnalysis) : null;
+      
+      const now = new Date();
+      const weekNumber = Math.ceil((now.getTime() - new Date(now.getFullYear(), 0, 1).getTime()) / 604800000);
+      
+      if (cached && cached.weekNumber === weekNumber) {
+        setWeeklyAnalysis(cached);
+      } else {
+        // Generate new weekly analysis
+        await generateWeeklyAnalysis(profileData, portfolioData);
       }
     } catch (error) {
-      console.error("Failed to generate insights:", error);
+      console.error("Failed to load data:", error);
     } finally {
       setLoading(false);
     }
-  }
+  };
 
-  async function askQuestion() {
-    if (!question.trim()) return;
-    
-    setAskingQuestion(true);
+  const generateWeeklyAnalysis = async (profileData: any, portfolioData: any[]) => {
     try {
-      const res = await fetch('/api/ai/agents', {
+      const response = await fetch('/api/portfolio/analysis', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          profile,
-          portfolio,
-          marketData,
-          agentType: selectedAgent,
-          question
+        body: JSON.stringify({ 
+          profile: profileData, 
+          portfolio: portfolioData 
         })
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        setInsights(data);
-        setQuestion("");
+      if (response.ok) {
+        const analysis = await response.json();
+        setWeeklyAnalysis(analysis);
+        
+        // Cache the analysis
+        localStorage.setItem('weeklyAnalysis', JSON.stringify(analysis));
       }
     } catch (error) {
-      console.error("Failed to ask question:", error);
-    } finally {
-      setAskingQuestion(false);
+      console.error("Failed to generate analysis:", error);
     }
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatInput.trim()) return;
+
+    const userMessage = { role: 'user', content: chatInput, timestamp: new Date().toISOString() };
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const response = await fetch('/api/ai/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: chatInput,
+          profile,
+          portfolio,
+          conversationHistory: chatMessages,
+          researchMode: true
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const aiMessage = {
+          role: 'assistant',
+          content: data.message || data.response,
+          research: data.research,
+          suggestions: data.suggestions,
+          timestamp: new Date().toISOString()
+        };
+        setChatMessages(prev => [...prev, aiMessage]);
+      }
+    } catch (error) {
+      console.error("Chat error:", error);
+      setChatMessages(prev => [...prev, {
+        role: 'assistant',
+        content: "I'm having trouble connecting right now. Please try again.",
+        timestamp: new Date().toISOString()
+      }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const formatValue = (value: number) => {
+    if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`;
+    if (value >= 1000) return `$${(value / 1000).toFixed(2)}K`;
+    return `$${value.toFixed(2)}`;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
+      </div>
+    );
   }
 
-  const agentIcons: Record<string, any> = {
-    quantum: Eye,
-    astro: Star,
-    technical: TrendingUp,
-    risk: Shield,
-    growth: Zap,
-    wisdom: Brain
-  };
-
-  const agentColors: Record<string, string> = {
-    quantum: "from-purple-500 to-pink-500",
-    astro: "from-indigo-500 to-purple-500",
-    technical: "from-blue-500 to-cyan-500",
-    risk: "from-orange-500 to-red-500",
-    growth: "from-green-500 to-emerald-500",
-    wisdom: "from-amber-500 to-yellow-500"
-  };
-
   return (
-    <div className="space-y-6">
-      {/* Header with User Context */}
-      <div className="qwl-card rounded-xl p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold qwl-text-gradient">Quantum Insights</h1>
-            <p className="text-sm text-[var(--muted)] mt-1">
-              Personalized guidance from your quantum wealth consciousness team
-            </p>
-          </div>
-          <button
-            onClick={generateInitialInsights}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-cyan-500/20 to-blue-500/20 border border-cyan-500/40 rounded-lg hover:from-cyan-500/30 hover:to-blue-500/30 transition-all"
-          >
-            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-            Refresh
-          </button>
+    <div className="max-w-7xl mx-auto p-6 space-y-6">
+      {/* Weekly Portfolio Analysis */}
+      <div className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 rounded-2xl p-8 border border-purple-500/20">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-blue-400 bg-clip-text text-transparent">
+            Weekly Portfolio Intelligence Report
+          </h1>
+          <span className="text-sm text-gray-400">
+            Week {weeklyAnalysis?.weekNumber || new Date().getWeek()} • {new Date().toLocaleDateString()}
+          </span>
         </div>
 
-        {/* User Profile Summary */}
-        {profile.name && (
-          <div className="mt-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-3 bg-white/5 rounded-lg">
-              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
-                <User size={12} />
-                Identity
+        {/* Portfolio Overview */}
+        {weeklyAnalysis?.portfolio && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-black/40 rounded-xl p-4 border border-purple-500/20">
+              <p className="text-sm text-gray-400 mb-1">Total Portfolio Value</p>
+              <p className="text-2xl font-bold text-white">
+                {formatValue(weeklyAnalysis.portfolio.totalValue)}
+              </p>
+              <div className="flex items-center mt-2 text-sm">
+                <span className={`flex items-center ${weeklyAnalysis.portfolio.performance.week >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {weeklyAnalysis.portfolio.performance.week >= 0 ? <ArrowUpIcon className="w-4 h-4 mr-1" /> : <ArrowDownIcon className="w-4 h-4 mr-1" />}
+                  {Math.abs(weeklyAnalysis.portfolio.performance.week)}% This Week
+                </span>
               </div>
-              <p className="text-sm font-semibold">{profile.name}</p>
-              <p className="text-xs text-cyan-400">{profile.quantumProfile?.archetype}</p>
             </div>
-            <div className="p-3 bg-white/5 rounded-lg">
-              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
-                <Star size={12} />
-                Cosmic Profile
-              </div>
-              <p className="text-sm font-semibold">{profile.sunSign || "?"}/{profile.moonSign || "?"}/{profile.risingSign || "?"}</p>
-              <p className="text-xs text-cyan-400">{profile.elemental?.element} Element</p>
+
+            <div className="bg-black/40 rounded-xl p-4 border border-purple-500/20">
+              <p className="text-sm text-gray-400 mb-1">Best Performer</p>
+              {weeklyAnalysis.portfolio.holdings[0] && (
+                <>
+                  <p className="text-2xl font-bold text-white">
+                    {weeklyAnalysis.portfolio.holdings.reduce((best: any, h: any) => 
+                      (h.performance?.weekly || 0) > (best.performance?.weekly || 0) ? h : best
+                    ).symbol}
+                  </p>
+                  <p className="text-sm text-green-400 mt-2">
+                    +{weeklyAnalysis.portfolio.holdings.reduce((best: any, h: any) => 
+                      (h.performance?.weekly || 0) > (best.performance?.weekly || 0) ? h : best
+                    ).performance?.weekly}% This Week
+                  </p>
+                </>
+              )}
             </div>
-            <div className="p-3 bg-white/5 rounded-lg">
-              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
-                <Target size={12} />
-                Investment Style
-              </div>
-              <p className="text-sm font-semibold">{profile.riskTolerance || "Balanced"}</p>
-              <p className="text-xs text-cyan-400">{profile.experience || "Growing"}</p>
+
+            <div className="bg-black/40 rounded-xl p-4 border border-purple-500/20">
+              <p className="text-sm text-gray-400 mb-1">Market Environment</p>
+              <p className="text-2xl font-bold text-white">
+                {weeklyAnalysis.macro?.vix?.value < 20 ? 'Stable' : 'Volatile'}
+              </p>
+              <p className="text-sm text-gray-400 mt-2">
+                VIX: {weeklyAnalysis.macro?.vix?.value} • DXY: {weeklyAnalysis.macro?.dxy?.value}
+              </p>
             </div>
-            <div className="p-3 bg-white/5 rounded-lg">
-              <div className="flex items-center gap-2 text-xs text-[var(--muted)] mb-1">
-                <DollarSign size={12} />
-                Portfolio
+          </div>
+        )}
+
+        {/* Holdings Performance */}
+        {weeklyAnalysis?.portfolio?.holdings && (
+          <div className="bg-black/40 rounded-xl p-6 border border-purple-500/20 mb-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <ChartBarIcon className="w-5 h-5 mr-2 text-purple-400" />
+              Holdings Performance
+            </h3>
+            <div className="space-y-3">
+              {weeklyAnalysis.portfolio.holdings.map((holding: any) => (
+                <div key={holding.symbol} className="flex items-center justify-between p-3 bg-black/20 rounded-lg">
+                  <div className="flex items-center space-x-4">
+                    <div>
+                      <p className="font-semibold text-white">{holding.symbol}</p>
+                      <p className="text-sm text-gray-400">
+                        {holding.amount} units • {weeklyAnalysis.portfolio.weights.find((w: any) => w.symbol === holding.symbol)?.weight}% of portfolio
+                      </p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold text-white">{formatValue(holding.value)}</p>
+                    <div className="flex space-x-2 text-sm">
+                      <span className={holding.performance?.daily >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        24h: {holding.performance?.daily}%
+                      </span>
+                      <span className={holding.performance?.weekly >= 0 ? 'text-green-400' : 'text-red-400'}>
+                        7d: {holding.performance?.weekly}%
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AI Analysis */}
+        {weeklyAnalysis?.analysis && (
+          <div className="bg-black/40 rounded-xl p-6 border border-purple-500/20 mb-6">
+            <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+              <SparklesIcon className="w-5 h-5 mr-2 text-purple-400" />
+              Weekly Analysis & Perspective
+            </h3>
+            <div className="prose prose-invert max-w-none">
+              <p className="text-gray-300 whitespace-pre-wrap">{weeklyAnalysis.analysis}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Astrological Context */}
+        {weeklyAnalysis?.astrologicalContext && (
+          <div className="bg-black/40 rounded-xl p-6 border border-purple-500/20">
+            <h3 className="text-lg font-semibold text-white mb-4">Cosmic Timing</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div>
+                <p className="text-sm text-gray-400">Lunar Phase</p>
+                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.lunarPhase}</p>
               </div>
-              <p className="text-sm font-semibold">{profile.portfolioSize || "Building"}</p>
-              <p className="text-xs text-cyan-400">{profile.timeHorizon || "Long-term"}</p>
+              <div>
+                <p className="text-sm text-gray-400">Mercury</p>
+                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.mercuryStatus}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400">Weekly Aspect</p>
+                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.weeklyAspects}</p>
+              </div>
+              <div>
+                <p className="text-sm text-gray-400">Personal Transit</p>
+                <p className="text-white font-medium">{weeklyAnalysis.astrologicalContext.personalTransits}</p>
+              </div>
             </div>
           </div>
         )}
       </div>
 
-      {/* Interactive Question Section */}
-      <div className="qwl-card rounded-xl p-6">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <MessageCircle className="text-cyan-400" size={20} />
-          Ask Your Quantum Advisors
-        </h2>
+      {/* AI Research Chatbot */}
+      <div className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 rounded-2xl p-6 border border-blue-500/20">
+        <div className="flex items-center mb-4">
+          <SearchIcon className="w-6 h-6 mr-2 text-blue-400" />
+          <h2 className="text-2xl font-bold text-white">AI Research Assistant</h2>
+        </div>
         
-        <div className="flex gap-3">
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value)}
-            className="bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400"
-          >
-            <option value="all">All Advisors</option>
-            <option value="quantum">Quantum Oracle</option>
-            <option value="astro">Cosmic Navigator</option>
-            <option value="technical">Alpha Seeker</option>
-            <option value="risk">Guardian</option>
-            <option value="growth">Abundance Amplifier</option>
-            <option value="wisdom">Sage Advisor</option>
-          </select>
-          
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && askQuestion()}
-            placeholder="Ask about your wealth journey, investments, or cosmic timing..."
-            className="flex-1 bg-transparent border border-white/10 rounded-lg px-4 py-2 text-sm outline-none focus:border-cyan-400"
-          />
-          
-          <button
-            onClick={askQuestion}
-            disabled={askingQuestion || !question.trim()}
-            className="px-6 py-2 bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-lg hover:from-cyan-600 hover:to-blue-600 transition-all disabled:opacity-50"
-          >
-            {askingQuestion ? "Asking..." : "Ask"}
-          </button>
-        </div>
-      </div>
-
-      {/* AI Agent Insights */}
-      {loading ? (
-        <div className="qwl-card rounded-xl p-12 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-2 border-cyan-400 border-t-transparent mx-auto mb-4"></div>
-          <p className="text-sm text-[var(--muted)]">Connecting to the quantum field...</p>
-        </div>
-      ) : insights ? (
-        <div className="grid md:grid-cols-2 gap-4">
-          {Object.entries(insights.insights).map(([key, insight]) => {
-            const Icon = agentIcons[key] || Brain;
-            const gradient = agentColors[key] || "from-gray-500 to-gray-600";
-            
-            return (
-              <div key={key} className="qwl-card rounded-xl p-6 hover:scale-[1.02] transition-all">
-                <div className="flex items-start gap-4">
-                  <div className={`p-3 rounded-xl bg-gradient-to-br ${gradient} bg-opacity-20`}>
-                    <Icon className="text-white" size={24} />
+        <div className="bg-black/40 rounded-xl p-4 border border-blue-500/20 h-96 overflow-y-auto mb-4">
+          {chatMessages.length === 0 ? (
+            <div className="text-center text-gray-400 mt-8">
+              <p className="mb-4">Ask me anything about your portfolio, market analysis, or crypto research.</p>
+              <div className="space-y-2">
+                <p className="text-sm">Try asking:</p>
+                <button 
+                  onClick={() => setChatInput("Research my BTC holding and tell me the current market sentiment")}
+                  className="block mx-auto text-blue-400 hover:text-blue-300 text-sm"
+                >
+                  "Research my BTC holding and market sentiment"
+                </button>
+                <button 
+                  onClick={() => setChatInput("What are the latest developments in DeFi?")}
+                  className="block mx-auto text-blue-400 hover:text-blue-300 text-sm"
+                >
+                  "Latest developments in DeFi"
+                </button>
+                <button 
+                  onClick={() => setChatInput("How does my astrological profile affect my investment style?")}
+                  className="block mx-auto text-blue-400 hover:text-blue-300 text-sm"
+                >
+                  "How my astrology affects investing"
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {chatMessages.map((msg, idx) => (
+                <div key={idx} className={`${msg.role === 'user' ? 'text-right' : 'text-left'}`}>
+                  <div className={`inline-block max-w-3xl p-3 rounded-lg ${
+                    msg.role === 'user' 
+                      ? 'bg-blue-600/20 text-white border border-blue-500/30' 
+                      : 'bg-purple-600/20 text-gray-200 border border-purple-500/30'
+                  }`}>
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                    {msg.suggestions && (
+                      <div className="mt-3 pt-3 border-t border-gray-700">
+                        <p className="text-xs text-gray-400 mb-2">Suggested questions:</p>
+                        {msg.suggestions.map((q: string, i: number) => (
+                          <button
+                            key={i}
+                            onClick={() => setChatInput(q)}
+                            className="block text-left text-xs text-blue-400 hover:text-blue-300 mb-1"
+                          >
+                            • {q}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-2xl">{insight.emoji}</span>
-                      <h3 className="font-semibold">{insight.agent}</h3>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(msg.timestamp).toLocaleTimeString()}
+                  </p>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="text-left">
+                  <div className="inline-block p-3 bg-purple-600/20 rounded-lg border border-purple-500/30">
+                    <div className="flex space-x-2">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce"></div>
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                     </div>
-                    <p className="text-xs text-[var(--muted)] mb-3">{insight.role}</p>
-                    <p className="text-sm leading-relaxed">{insight.message}</p>
                   </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="qwl-card rounded-xl p-12 text-center">
-          <Sparkles className="mx-auto text-cyan-400 mb-4" size={48} />
-          <h2 className="text-xl font-semibold mb-2">Ready for Your Insights</h2>
-          <p className="text-sm text-[var(--muted)]">Click refresh to receive personalized guidance from your quantum advisors</p>
-        </div>
-      )}
-
-      {/* Personal Intentions & Goals */}
-      {profile.intention && (
-        <div className="qwl-card rounded-xl p-6 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border-purple-500/30">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <Compass className="text-purple-400" size={20} />
-            Your Quantum Wealth Journey
-          </h3>
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-[var(--muted)] mb-1">Primary Intention</p>
-              <p className="text-sm">{profile.intention}</p>
-            </div>
-            {profile.biggestChallenge && (
-              <div>
-                <p className="text-xs text-[var(--muted)] mb-1">Current Challenge</p>
-                <p className="text-sm">{profile.biggestChallenge}</p>
-              </div>
-            )}
-            {profile.idealOutcome && (
-              <div>
-                <p className="text-xs text-[var(--muted)] mb-1">Vision</p>
-                <p className="text-sm">{profile.idealOutcome}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Market Context */}
-      <div className="qwl-card rounded-xl p-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <TrendingUp className="text-green-400" size={20} />
-          Current Quantum Field Status
-        </h3>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="text-center p-3 bg-white/5 rounded-lg">
-            <p className="text-xs text-[var(--muted)] mb-1">BTC Energy</p>
-            <p className="text-lg font-bold">${marketData.btc?.toLocaleString() || "---"}</p>
-            <p className={`text-sm ${marketData.btcChange > 0 ? "text-green-400" : "text-red-400"}`}>
-              {marketData.btcChange > 0 ? "+" : ""}{marketData.btcChange?.toFixed(2) || "0"}%
-            </p>
-          </div>
-          <div className="text-center p-3 bg-white/5 rounded-lg">
-            <p className="text-xs text-[var(--muted)] mb-1">ETH Flow</p>
-            <p className="text-lg font-bold">${marketData.eth?.toLocaleString() || "---"}</p>
-            <p className={`text-sm ${marketData.ethChange > 0 ? "text-green-400" : "text-red-400"}`}>
-              {marketData.ethChange > 0 ? "+" : ""}{marketData.ethChange?.toFixed(2) || "0"}%
-            </p>
-          </div>
-          <div className="text-center p-3 bg-white/5 rounded-lg">
-            <p className="text-xs text-[var(--muted)] mb-1">Field Trend</p>
-            <p className="text-lg font-bold capitalize">{marketData.trend || "Neutral"}</p>
-            <div className="flex justify-center mt-1">
-              {marketData.trend === "bullish" ? (
-                <TrendingUp className="text-green-400" size={16} />
-              ) : marketData.trend === "bearish" ? (
-                <TrendingUp className="text-red-400 rotate-180" size={16} />
-              ) : (
-                <ChevronRight className="text-yellow-400" size={16} />
               )}
+              <div ref={chatEndRef} />
             </div>
-          </div>
+          )}
+        </div>
+
+        <div className="flex space-x-2">
+          <input
+            type="text"
+            value={chatInput}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyPress={(e) => e.key === 'Enter' && !chatLoading && sendChatMessage()}
+            placeholder="Ask about markets, research coins, or get portfolio insights..."
+            className="flex-1 px-4 py-3 bg-black/40 border border-blue-500/30 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-400"
+            disabled={chatLoading}
+          />
+          <button
+            onClick={sendChatMessage}
+            disabled={chatLoading || !chatInput.trim()}
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-500 hover:to-purple-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+          >
+            <SendIcon className="w-5 h-5" />
+          </button>
         </div>
       </div>
     </div>
   );
 }
+
+// Add week number helper
+declare global {
+  interface Date {
+    getWeek(): number;
+  }
+}
+
+Date.prototype.getWeek = function() {
+  const firstDayOfYear = new Date(this.getFullYear(), 0, 1);
+  const pastDaysOfYear = (this.getTime() - firstDayOfYear.getTime()) / 86400000;
+  return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+};
