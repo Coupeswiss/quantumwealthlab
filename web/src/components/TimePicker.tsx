@@ -111,8 +111,8 @@ export default function TimePicker({ value, onChange, placeholder = "Select time
 
       {isOpen && (
         <div 
-          className="absolute z-[9999] mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
-          style={{ minWidth: '280px' }}
+          className="absolute mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
+          style={{ minWidth: '280px', zIndex: 999999 }}
         >
           <div className="flex items-center gap-4">
             {/* Hour */}

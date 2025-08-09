@@ -166,8 +166,8 @@ export default function DatePicker({ value, onChange, placeholder = "Select date
 
       {isOpen && (
         <div 
-          className="absolute z-[9999] mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
-          style={{ minWidth: '320px' }}
+          className="absolute mt-2 p-4 bg-[#0a1628] border border-cyan-500/30 rounded-xl shadow-2xl shadow-black/50 backdrop-blur-xl"
+          style={{ minWidth: '320px', zIndex: 999999 }}
         >
           {/* Month/Year Navigation */}
           <div className="flex items-center justify-between mb-4">
