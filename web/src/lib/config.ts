@@ -2,7 +2,10 @@
 export const getBaseUrl = () => {
   // In production on Render
   if (process.env.RENDER_EXTERNAL_URL) {
-    return `https://${process.env.RENDER_EXTERNAL_URL}`;
+    // Normalize: strip protocol and trailing slash to avoid malformed URLs
+    let url = process.env.RENDER_EXTERNAL_URL.trim();
+    url = url.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+    return `https://${url}`;
   }
   
   // Custom domain if set
