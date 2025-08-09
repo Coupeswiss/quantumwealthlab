@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { getBaseUrl } from "@/lib/config";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -15,13 +16,13 @@ export async function POST(req: Request) {
     
     try {
       // Get prices
-      const pricesRes = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/crypto/prices`);
+      const pricesRes = await fetch(`${getBaseUrl()}/api/crypto/prices`);
       if (pricesRes.ok) {
         marketData = await pricesRes.json();
       }
       
       // Get research for holdings
-      const researchRes = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/research/crypto`, {
+      const researchRes = await fetch(`${getBaseUrl()}/api/research/crypto`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ holdings, profile })

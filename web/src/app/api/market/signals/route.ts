@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { getBaseUrl } from "@/lib/config";
 
 // Fetch real-time market data
 async function fetchMarketData() {
@@ -13,7 +14,7 @@ async function fetchMarketData() {
 
   try {
     // Fetch crypto prices
-    const pricesRes = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/crypto/prices`);
+    const pricesRes = await fetch(`${getBaseUrl()}/api/crypto/prices`);
     if (pricesRes.ok) {
       const prices = await pricesRes.json();
       marketData.prices = prices;
@@ -73,7 +74,7 @@ function analyzeTechnicalIndicators(marketData: any) {
 // Generate market signals using AI agent
 async function generateAISignals(marketData: any, indicators: any) {
   try {
-    const agentRes = await fetch(`${process.env.NEXT_PUBLIC_URL || 'http://localhost:3000'}/api/ai/agents`, {
+    const agentRes = await fetch(`${getBaseUrl()}/api/ai/agents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
