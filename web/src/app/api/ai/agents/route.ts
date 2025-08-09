@@ -97,7 +97,7 @@ export async function POST(req: Request) {
     const { profile, agentType, prompt, context } = await req.json();
     
     // Fetch current market data
-    let marketData = {};
+    let marketData: any = {};
     try {
       const pricesRes = await fetch(`${getBaseUrl()}/api/crypto/prices`);
       if (pricesRes.ok) {
