@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { User, Calendar, Target, Shield, Brain, Star } from "lucide-react";
+import { User, Calendar, Target, Shield, Brain, Star, Save, Check } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 
@@ -8,9 +8,10 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>({});
   const [astroData, setAstroData] = useState<any>({});
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    // Load full profile from Zustand format
+    // Load full profile from localStorage
     const stored = localStorage.getItem("qwl-profile");
     if (stored) {
       const parsed = JSON.parse(stored);
@@ -27,6 +28,7 @@ export default function ProfilePage() {
 
   async function updateProfile(updates: any) {
     setSaving(true);
+    setSaved(false);
     
     // If birth data changed, recalculate astrology
     if (updates.birthDate || updates.birthTime || updates.birthPlace) {
@@ -56,7 +58,13 @@ export default function ProfilePage() {
               wealthStyle: astro.personality?.wealthStyle,
             },
           };
-          setAstroData(astro);
+          setAstroData({
+            sunSign: astro.sunSign,
+            moonSign: astro.moonSign,
+            risingSign: astro.risingSign,
+            element: astro.elemental?.element,
+            archetype: astro.personality?.archetype,
+          });
         }
       } catch (e) {
         console.error("Astrology calculation error:", e);
@@ -73,7 +81,26 @@ export default function ProfilePage() {
       version: 0
     }));
     
+    // Trigger AI insights regeneration if we have enough data
+    if (updatedProfile.birthDate && updatedProfile.name) {
+      try {
+        await fetch("/api/ai/insights", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            profile: updatedProfile,
+            portfolio: {},
+            marketData: {}
+          }),
+        });
+      } catch (e) {
+        console.error("AI insights generation error:", e);
+      }
+    }
+    
     setSaving(false);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
   }
 
   return (
@@ -91,20 +118,23 @@ export default function ProfilePage() {
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-[var(--muted)]">Name</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Name</label>
             <input 
               value={profile.name || ""} 
               onChange={(e) => updateProfile({ name: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              onBlur={() => profile.name && updateProfile({})} // Save on blur
+              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="Your name"
             />
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Email</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Email</label>
             <input 
+              type="email"
               value={profile.email || ""} 
               onChange={(e) => updateProfile({ email: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              onBlur={() => profile.email && updateProfile({})} // Save on blur
+              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="your@email.com"
             />
           </div>
@@ -135,11 +165,12 @@ export default function ProfilePage() {
             />
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Birth Place</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Birth Place</label>
             <input 
               value={profile.birthPlace || ""} 
               onChange={(e) => updateProfile({ birthPlace: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              onBlur={() => profile.birthPlace && updateProfile({})} // Save on blur
+              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="City, Country"
             />
           </div>
@@ -147,25 +178,25 @@ export default function ProfilePage() {
         
         {astroData.sunSign && (
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 pt-4 border-t border-white/10">
-            <div className="text-center">
+            <div className="text-center p-3 rounded-lg bg-white/5">
               <div className="text-xs text-[var(--muted)]">Sun Sign</div>
-              <div className="text-sm font-semibold text-cyan-400">{astroData.sunSign}</div>
+              <div className="text-sm font-semibold text-cyan-400 mt-1">{astroData.sunSign}</div>
             </div>
-            <div className="text-center">
+            <div className="text-center p-3 rounded-lg bg-white/5">
               <div className="text-xs text-[var(--muted)]">Moon Sign</div>
-              <div className="text-sm font-semibold text-cyan-400">{astroData.moonSign}</div>
+              <div className="text-sm font-semibold text-cyan-400 mt-1">{astroData.moonSign}</div>
             </div>
-            <div className="text-center">
+            <div className="text-center p-3 rounded-lg bg-white/5">
               <div className="text-xs text-[var(--muted)]">Rising</div>
-              <div className="text-sm font-semibold text-cyan-400">{astroData.risingSign}</div>
+              <div className="text-sm font-semibold text-cyan-400 mt-1">{astroData.risingSign}</div>
             </div>
-            <div className="text-center">
+            <div className="text-center p-3 rounded-lg bg-white/5">
               <div className="text-xs text-[var(--muted)]">Element</div>
-              <div className="text-sm font-semibold text-cyan-400">{astroData.element}</div>
+              <div className="text-sm font-semibold text-cyan-400 mt-1">{astroData.element}</div>
             </div>
-            <div className="text-center">
+            <div className="text-center p-3 rounded-lg bg-white/5">
               <div className="text-xs text-[var(--muted)]">Archetype</div>
-              <div className="text-sm font-semibold text-cyan-400">{astroData.archetype}</div>
+              <div className="text-sm font-semibold text-cyan-400 mt-1">{astroData.archetype}</div>
             </div>
           </div>
         )}
@@ -179,60 +210,60 @@ export default function ProfilePage() {
         </div>
         <div className="grid md:grid-cols-2 gap-4">
           <div>
-            <label className="text-xs text-[var(--muted)]">Portfolio Size</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Portfolio Size</label>
             <select 
               value={profile.portfolioSize || ""} 
               onChange={(e) => updateProfile({ portfolioSize: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
-              <option value="">Select size</option>
-              <option value="&lt; $10k">Less than $10,000</option>
-              <option value="$10k-50k">$10,000 - $50,000</option>
-              <option value="$50k-100k">$50,000 - $100,000</option>
-              <option value="$100k-500k">$100,000 - $500,000</option>
-              <option value="&gt; $500k">More than $500,000</option>
+              <option value="" className="bg-[#0a1628]">Select size</option>
+              <option value="< $10k" className="bg-[#0a1628]">Less than $10,000</option>
+              <option value="$10k-50k" className="bg-[#0a1628]">$10,000 - $50,000</option>
+              <option value="$50k-100k" className="bg-[#0a1628]">$50,000 - $100,000</option>
+              <option value="$100k-500k" className="bg-[#0a1628]">$100,000 - $500,000</option>
+              <option value="> $500k" className="bg-[#0a1628]">More than $500,000</option>
             </select>
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Experience Level</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Experience Level</label>
             <select 
               value={profile.experience || ""} 
               onChange={(e) => updateProfile({ experience: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
-              <option value="">Select level</option>
-              <option value="beginner">Beginner (&lt; 1 year)</option>
-              <option value="intermediate">Intermediate (1-3 years)</option>
-              <option value="advanced">Advanced (3-5 years)</option>
-              <option value="expert">Expert (5+ years)</option>
+              <option value="" className="bg-[#0a1628]">Select level</option>
+              <option value="beginner" className="bg-[#0a1628]">Beginner (Less than 1 year)</option>
+              <option value="intermediate" className="bg-[#0a1628]">Intermediate (1-3 years)</option>
+              <option value="advanced" className="bg-[#0a1628]">Advanced (3-5 years)</option>
+              <option value="expert" className="bg-[#0a1628]">Expert (5+ years)</option>
             </select>
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Risk Tolerance</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Risk Tolerance</label>
             <select 
               value={profile.riskTolerance || ""} 
               onChange={(e) => updateProfile({ riskTolerance: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
-              <option value="">Select tolerance</option>
-              <option value="conservative">Conservative</option>
-              <option value="moderate">Moderate</option>
-              <option value="aggressive">Aggressive</option>
-              <option value="very aggressive">Very Aggressive</option>
+              <option value="" className="bg-[#0a1628]">Select tolerance</option>
+              <option value="conservative" className="bg-[#0a1628]">Conservative</option>
+              <option value="moderate" className="bg-[#0a1628]">Moderate</option>
+              <option value="aggressive" className="bg-[#0a1628]">Aggressive</option>
+              <option value="very aggressive" className="bg-[#0a1628]">Very Aggressive</option>
             </select>
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Time Horizon</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Time Horizon</label>
             <select 
               value={profile.timeHorizon || ""} 
               onChange={(e) => updateProfile({ timeHorizon: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
-              <option value="">Select horizon</option>
-              <option value="short">Short-term (&lt; 1 year)</option>
-              <option value="medium">Medium-term (1-3 years)</option>
-              <option value="long">Long-term (3-10 years)</option>
-              <option value="very long">Very Long-term (10+ years)</option>
+              <option value="" className="bg-[#0a1628]">Select horizon</option>
+              <option value="short" className="bg-[#0a1628]">Short-term (Less than 1 year)</option>
+              <option value="medium" className="bg-[#0a1628]">Medium-term (1-3 years)</option>
+              <option value="long" className="bg-[#0a1628]">Long-term (3-10 years)</option>
+              <option value="very long" className="bg-[#0a1628]">Very Long-term (10+ years)</option>
             </select>
           </div>
         </div>
@@ -246,41 +277,80 @@ export default function ProfilePage() {
         </div>
         <div className="space-y-4">
           <div>
-            <label className="text-xs text-[var(--muted)]">Primary Intention</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Primary Intention</label>
             <input 
               value={profile.intention || ""} 
               onChange={(e) => updateProfile({ intention: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              onBlur={() => profile.intention && updateProfile({})} // Save on blur
+              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="What's your main goal with wealth creation?"
             />
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Biggest Challenge</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Biggest Challenge</label>
             <input 
               value={profile.biggestChallenge || ""} 
               onChange={(e) => updateProfile({ biggestChallenge: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm"
+              onBlur={() => profile.biggestChallenge && updateProfile({})} // Save on blur
+              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="What's holding you back?"
             />
           </div>
           <div>
-            <label className="text-xs text-[var(--muted)]">Ideal Outcome</label>
+            <label className="text-xs text-[var(--muted)] block mb-1">Ideal Outcome</label>
             <textarea 
               value={profile.idealOutcome || ""} 
               onChange={(e) => updateProfile({ idealOutcome: e.target.value })}
-              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm min-h-[80px]"
+              onBlur={() => profile.idealOutcome && updateProfile({})} // Save on blur
+              className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm min-h-[80px] outline-none focus:border-cyan-400 transition-all resize-none"
               placeholder="Describe your ideal financial future..."
             />
           </div>
         </div>
       </div>
 
-      {saving && (
-        <div className="fixed bottom-4 right-4 bg-cyan-500/20 border border-cyan-500/40 rounded-lg px-4 py-2 text-sm">
-          Saving profile...
+      {/* Save Button */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => updateProfile({})}
+          disabled={saving}
+          className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium hover:shadow-[0_0_30px_rgba(0,212,255,0.4)] transition-all disabled:opacity-50"
+        >
+          {saved ? (
+            <>
+              <Check size={18} />
+              Saved
+            </>
+          ) : saving ? (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save size={18} />
+              Save Profile
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Status Toast */}
+      {(saving || saved) && (
+        <div className={`fixed bottom-4 right-4 ${saved ? 'bg-green-500/20 border-green-500/40' : 'bg-cyan-500/20 border-cyan-500/40'} border rounded-lg px-4 py-2 text-sm flex items-center gap-2`}>
+          {saved ? (
+            <>
+              <Check size={16} className="text-green-400" />
+              Profile saved successfully!
+            </>
+          ) : (
+            <>
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-cyan-400/30 border-t-cyan-400"></div>
+              Updating profile...
+            </>
+          )}
         </div>
       )}
     </div>
   );
 }
-
