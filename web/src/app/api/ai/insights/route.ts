@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import OpenAI from "openai";
 import { generateComprehensiveInsights } from "@/lib/astrology-insights";
 import { ZODIAC_DATABASE, generateWealthArchetype } from "@/lib/astrology-database";
+import { getBaseUrl } from "@/lib/config";
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -10,6 +11,28 @@ const openai = new OpenAI({
 export async function POST(req: Request) {
   try {
     const { profile, portfolio, marketData } = await req.json();
+
+    // Resolve freshest market context (fallback to server fetch if not provided)
+    let btcPrice = marketData?.BTC?.price || marketData?.btc || marketData?.prices?.BTC?.price;
+    let ethPrice = marketData?.ETH?.price || marketData?.eth || marketData?.prices?.ETH?.price;
+    let btcChange = marketData?.BTC?.change24h || marketData?.btcChange || marketData?.prices?.BTC?.change24h;
+    let ethChange = marketData?.ETH?.change24h || marketData?.ethChange || marketData?.prices?.ETH?.change24h;
+
+    if (btcPrice == null || ethPrice == null) {
+      try {
+        const pricesRes = await fetch(`${getBaseUrl()}/api/crypto/prices`, { next: { revalidate: 15 } });
+        if (pricesRes.ok) {
+          const fresh = await pricesRes.json();
+          btcPrice = fresh?.BTC?.price ?? btcPrice;
+          ethPrice = fresh?.ETH?.price ?? ethPrice;
+          btcChange = fresh?.BTC?.change24h ?? btcChange;
+          ethChange = fresh?.ETH?.change24h ?? ethChange;
+        }
+      } catch {
+        // ignore – will use whatever we have
+      }
+    }
+    const computedTrend = typeof btcChange === "number" ? (btcChange > 0 ? "bullish" : btcChange < 0 ? "bearish" : "neutral") : (marketData?.trend || "neutral");
     
     // Generate comprehensive astrological insights
     const astroInsights = profile?.sunSign ? generateComprehensiveInsights(profile, marketData) : null;
@@ -47,7 +70,7 @@ export async function POST(req: Request) {
       recentInsights: profile?.insights?.slice(-3) || [],
       portfolioValue: portfolio?.totalValue || 0,
       topHoldings: portfolio?.holdings?.slice(0, 3) || [],
-      marketTrend: marketData?.trend || "neutral",
+      marketTrend: computedTrend,
       // New accurate astrological data
       sunElement: sunData?.element || "Unknown",
       sunModality: sunData?.modality || "Unknown",
@@ -82,9 +105,7 @@ export async function POST(req: Request) {
     }
     
     // Use AI agents to generate different types of insights
-    const agentsBaseUrl = process.env.NODE_ENV === 'production' 
-      ? 'https://quantumwealthlab.onrender.com' 
-      : 'http://localhost:' + (process.env.PORT || '3000');
+    const agentsBaseUrl = getBaseUrl();
     
     // Generate daily energy insight using quantum agent
     let dailyInsight = "";
@@ -119,7 +140,8 @@ export async function POST(req: Request) {
           portfolio,
           marketData,
           agentType: 'technical',
-          question: `Analyze current market conditions for ${userContext.name}'s portfolio. BTC at $${marketData?.prices?.BTC?.price || marketData?.BTC?.price || 'N/A'}, market trend ${marketData?.trend || 'neutral'}. Give specific actionable market intelligence.`
+          question: `Analyze current market conditions for ${userContext.name}'s portfolio. BTC at $${(btcPrice ?? 'N/A')}, ETH at $${(ethPrice ?? 'N/A')}. Trend: ${computedTrend}.
+          STRICT: You MUST anchor ALL numeric levels to these values or simple derivations (e.g., +/- 3%, 5%, 10%). Do NOT invent historic levels like $25,000 or $1,600 unless they are within 15% of the provided price. Provide 2-3 sentences with exact, current numbers.`
         })
       });
       
@@ -145,6 +167,25 @@ export async function POST(req: Request) {
         const personalData = await personalResponse.json();
         personalInsight = personalData.insights?.wisdom || personalData.message || "";
       }
+      // Light web research to ground the analysis (best effort)
+      try {
+        const researchRes = await fetch(`${getBaseUrl()}/api/ai/research`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: `In one sentence, summarize the latest BTC/ETH headlines and any widely cited key levels (today).`,
+            profile,
+            portfolio,
+            context: []
+          })
+        });
+        if (researchRes.ok) {
+          const research = await researchRes.json();
+          if (research?.answer) {
+            marketInsight = `${marketInsight} ${research.answer}`.trim();
+          }
+        }
+      } catch {}
     } catch (agentError) {
       console.error('Error calling agents:', agentError);
       // Continue with OpenAI fallback
