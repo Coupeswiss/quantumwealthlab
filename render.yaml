@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: quantum-wealth-lab
+    runtime: node
+    region: oregon # oregon, ohio, singapore, or frankfurt
+    plan: free # or "starter" for $7/month (no sleep)
+    rootDir: web
+    buildCommand: npx pnpm install && npx pnpm build
+    startCommand: npx pnpm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: true
+      - key: NEXT_PUBLIC_URL
+        fromService:
+          type: web
+          name: quantum-wealth-lab
+          property: url
