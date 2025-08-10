@@ -109,15 +109,21 @@ async function getCryptoNews() {
 // Generate personalized weekly report
 export async function POST(req: Request) {
   try {
-    const { profile, portfolio, lastReportDate } = await req.json();
+    const body = await req.json();
+    const { profile, portfolio, lastReportDate } = body;
     
-    // Check if new report is needed
-    if (!shouldGenerateNewReport(lastReportDate)) {
+    // Validate input
+    if (!profile) {
       return NextResponse.json({
-        error: "Weekly report already generated",
-        nextReportDate: new Date(new Date(lastReportDate).getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-        message: "Your weekly report is generated every 7 days. Check back soon!"
-      }, { status: 429 });
+        error: "Profile data is required",
+        message: "Please complete your profile to generate a report"
+      }, { status: 400 });
+    }
+    
+    // Check if new report is needed (skip for demo/testing)
+    if (lastReportDate && !shouldGenerateNewReport(lastReportDate)) {
+      // For now, allow regeneration for testing
+      console.log('Report recently generated, but allowing regeneration for testing');
     }
     
     // Get comprehensive market data
@@ -125,7 +131,7 @@ export async function POST(req: Request) {
     const news = await getCryptoNews();
     
     // Calculate portfolio performance with detailed metrics
-    const portfolioAnalysis = analyzePortfolio(portfolio, marketData);
+    const portfolioAnalysis = analyzePortfolio(portfolio || [], marketData);
     
     // Generate the weekly report
     const report = await generatePersonalizedReport(profile, portfolio, marketData, news, portfolioAnalysis);
@@ -138,8 +144,10 @@ export async function POST(req: Request) {
     
   } catch (error) {
     console.error("Weekly report error:", error);
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ 
       error: "Failed to generate weekly report",
+      message: errorMessage,
       report: generateFallbackReport()
     }, { status: 500 });
   }
@@ -293,8 +301,29 @@ function assessRisk(concentration: any): string {
 
 async function generatePersonalizedReport(profile: any, portfolio: any, marketData: any, news: any, analysis: any) {
   if (!openai.apiKey) {
+    console.log('OpenAI API key not configured, using fallback report');
     return generateFallbackReport();
   }
+  
+  // Ensure profile has minimum required fields
+  const safeProfile = {
+    name: profile?.name || "Investor",
+    sunSign: profile?.sunSign || "Unknown",
+    moonSign: profile?.moonSign || "Unknown",
+    risingSign: profile?.risingSign || "Unknown",
+    intention: profile?.intention || "Build wealth",
+    biggestChallenge: profile?.biggestChallenge || "Getting started",
+    idealOutcome: profile?.idealOutcome || "Financial independence",
+    experience: profile?.experience || "beginner",
+    riskTolerance: profile?.riskTolerance || "moderate",
+    timeHorizon: profile?.timeHorizon || "medium-term",
+    portfolioSize: profile?.portfolioSize || "< $10k",
+    elemental: profile?.elemental || {},
+    insights: profile?.insights || [],
+    journalEntries: profile?.journalEntries || []
+  };
+  
+  profile = safeProfile;
   
   // Build detailed holdings description
   const holdingsDetail = analysis.holdings.map((h: any) => {
@@ -379,14 +408,27 @@ Write a deeply personalized, conversational weekly report that:
    - Entry/exit points aligned with their goals
    - How to navigate based on their ${profile.elemental?.element} element
 
-Keep it conversational but data-rich. Reference exact numbers, percentages, and price levels. Make every sentence relevant to THEIR specific situation, holdings, and goals. This should feel like a report from a friend who deeply understands both their portfolio and their personal journey.`;
+Keep it conversational but data-rich. Reference exact numbers, percentages, and price levels. 
+
+CRITICAL: Frame ALL suggestions as invitations and possibilities:
+- "You might consider..." instead of "You should..."
+- "One opportunity to explore..." instead of "Do this..."
+- "Worth investigating..." instead of "You need to..."
+
+This report should feel like sophisticated market intelligence from a thoughtful advisor who deeply understands both markets and ${profile.name}'s personal journey. Every suggestion is an invitation, not a command.`;
 
   try {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.8,
-      max_tokens: 2000,
+      messages: [
+        { 
+          role: "system", 
+          content: "You are a sophisticated market analyst providing thoughtful, personalized wealth guidance. You combine institutional-quality analysis with deep personal understanding. ALWAYS frame suggestions as invitations ('you might consider...', 'one option could be...'), NEVER as commands." 
+        },
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7,
+      max_tokens: 2500,
     });
     
     return completion.choices[0]?.message?.content || generateFallbackReport();

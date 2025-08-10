@@ -114,26 +114,48 @@ ${userContext}
 
 ${question ? `User's specific question: "${question}"` : `Provide strategic insights for this user's current situation.`}
 
-CRITICAL REQUIREMENTS FOR YOUR RESPONSE:
-1. Be SPECIFIC and ACTIONABLE - provide exact numbers, percentages, price levels
-2. Reference their ACTUAL holdings and portfolio size
-3. Consider their ${profile.experience} experience and ${profile.riskTolerance} risk tolerance
-4. Align with their stated challenge: "${profile.biggestChallenge}"
-5. Support their goal: "${profile.intention}"
-6. Use their astrological profile for timing insights:
-   - ${profile.sunSign} sun suggests ${getSunSignTraits(profile.sunSign)}
-   - ${profile.moonSign} moon indicates ${getMoonSignTraits(profile.moonSign)}
-   - ${profile.elemental?.element} element means ${getElementalTraits(profile.elemental?.element)}
-7. Give PRACTICAL advice they can implement TODAY
-8. Include specific price targets, allocation percentages, or time frames
-9. Be grounded and strategic, not ethereal or vague
+CRITICAL REQUIREMENTS:
 
-Your response should be 3-4 sentences of HIGH-VALUE, PERSONALIZED insight that ${profile.name || "this person"} can act on immediately. Reference their specific situation and provide concrete next steps.`;
+1. MARKET-FIRST ANALYSIS:
+   - Start with current market conditions and specific opportunities
+   - Reference exact price levels, support/resistance zones
+   - Include technical indicators and volume patterns
+   - Provide actionable trading setups
+
+2. PERSONAL INTEGRATION:
+   - Primary Intention: "${profile.intention || 'Build sustainable wealth'}"
+   - Current Challenge: "${profile.biggestChallenge || 'Timing and confidence'}"
+   - Ideal Outcome: "${profile.idealOutcome || 'Financial independence'}"
+   - Experience: ${profile.experience || 'intermediate'}, Risk: ${profile.riskTolerance || 'moderate'}
+
+3. LANGUAGE REQUIREMENTS:
+   - Use INVITATIONS: "You might consider...", "Worth exploring...", "One option could be..."
+   - NEVER use commands: Avoid "You should", "You must", "Do this"
+   - Professional market terminology with accessibility
+
+4. ASTROLOGICAL TIMING (Secondary):
+   - ${profile.sunSign || 'Your'} sun: ${getSunSignTraits(profile.sunSign)} 
+   - ${profile.moonSign || 'Your'} moon: ${getMoonSignTraits(profile.moonSign)}
+   - Keep this subtle and market-relevant
+
+5. IMMEDIATE VALUE:
+   - Specific price targets or ranges
+   - Position sizing for their ${profile.portfolioSize || 'portfolio'}
+   - Risk management levels
+   - Actions they could explore TODAY
+
+Your response: 3-4 sentences of sophisticated market intelligence that ${profile.name || "they"} might explore. Every suggestion is an invitation, not a command.`;
 
       try {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o-mini",
-          messages: [{ role: "user", content: prompt }],
+          messages: [
+            { 
+              role: "system", 
+              content: `You are ${agentInfo.name}, providing sophisticated market analysis with personal understanding. You combine institutional-quality insights with thoughtful guidance. ALWAYS frame suggestions as invitations ('you might consider...', 'worth exploring...'), NEVER as commands. Be a wise friend in finance, not a directive authority.`
+            },
+            { role: "user", content: prompt }
+          ],
           temperature: 0.7,
           max_tokens: 250,
         });

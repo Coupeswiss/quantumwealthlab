@@ -123,13 +123,16 @@ export default function DashboardHome() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ 
             profile: fullProfile || { name: "Quantum Explorer" },
-            portfolio: { 
-              totalValue: portfolioValue,
-              holdings: wallets 
-            },
+            portfolio: wallets || [],
             marketData: {
               trend: marketTrend,
-              prices: prices
+              prices: prices,
+              BTC: prices.BTC,
+              ETH: prices.ETH,
+              btc: prices.BTC?.price,
+              eth: prices.ETH?.price,
+              btcChange: prices.BTC?.change24h,
+              ethChange: prices.ETH?.change24h
             }
           }),
         });

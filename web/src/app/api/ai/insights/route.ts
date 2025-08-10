@@ -81,7 +81,90 @@ export async function POST(req: Request) {
       });
     }
     
-    // Generate deeply personalized insights with OpenAI using accurate astrology
+    // Use AI agents to generate different types of insights
+    const agentsBaseUrl = process.env.NODE_ENV === 'production' 
+      ? 'https://quantumwealthlab.onrender.com' 
+      : 'http://localhost:' + (process.env.PORT || '3000');
+    
+    // Generate daily energy insight using quantum agent
+    let dailyInsight = "";
+    let marketInsight = "";
+    let personalInsight = "";
+    
+    try {
+      // Daily Energy - Quantum/Astro Agent
+      const dailyResponse = await fetch(`${agentsBaseUrl}/api/ai/agents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: userContext,
+          portfolio,
+          marketData,
+          agentType: 'quantum',
+          question: `Generate a daily energy reading for ${userContext.name} based on their ${userContext.sunSign} sun, ${userContext.moonSign} moon, and ${userContext.risingSign} rising. Focus on their intention: "${userContext.intention}". Make it personal and actionable.`
+        })
+      });
+      
+      if (dailyResponse.ok) {
+        const dailyData = await dailyResponse.json();
+        dailyInsight = dailyData.insights?.quantum || dailyData.message || "";
+      }
+      
+      // Market Pulse - Technical Agent  
+      const marketResponse = await fetch(`${agentsBaseUrl}/api/ai/agents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: userContext,
+          portfolio,
+          marketData,
+          agentType: 'technical',
+          question: `Analyze current market conditions for ${userContext.name}'s portfolio. BTC at $${marketData?.prices?.BTC?.price || marketData?.BTC?.price || 'N/A'}, market trend ${marketData?.trend || 'neutral'}. Give specific actionable market intelligence.`
+        })
+      });
+      
+      if (marketResponse.ok) {
+        const marketResponseData = await marketResponse.json();
+        marketInsight = marketResponseData.insights?.technical || marketResponseData.message || "";
+      }
+      
+      // Personal Guidance - Wisdom Agent
+      const personalResponse = await fetch(`${agentsBaseUrl}/api/ai/agents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          profile: userContext,
+          portfolio,
+          marketData,
+          agentType: 'wisdom',
+          question: `Provide personal wealth guidance for ${userContext.name} to overcome "${userContext.biggestChallenge}" and achieve "${userContext.idealOutcome}". Consider their ${userContext.riskTolerance} risk tolerance and ${userContext.experience} experience level.`
+        })
+      });
+      
+      if (personalResponse.ok) {
+        const personalData = await personalResponse.json();
+        personalInsight = personalData.insights?.wisdom || personalData.message || "";
+      }
+    } catch (agentError) {
+      console.error('Error calling agents:', agentError);
+      // Continue with OpenAI fallback
+    }
+    
+    // If agent calls succeeded and we have insights, return them
+    if (dailyInsight || marketInsight || personalInsight) {
+      return NextResponse.json({
+        daily: dailyInsight || astroInsights?.daily?.[0]?.message || `${userContext.name}, as ${userContext.archetype}, embrace your ${userContext.sunSign} energy today.`,
+        market: marketInsight || astroInsights?.wealth?.[0]?.message || `Market conditions align with your ${userContext.wealthStyle} approach.`,
+        personal: personalInsight || `Trust your ${userContext.moonSign} intuition as you work toward ${userContext.idealOutcome}.`,
+        astroWeather: astroInsights?.transits?.[0]?.message || `${userContext.sunSign} energies are active in the current market cycle.`,
+        quantumField: astroInsights?.weekly?.overview || "Your unique frequency resonates with abundance opportunities.",
+        luckyDays: astroInsights?.weekly?.luckyDays || userContext.luckyNumbers?.map(n => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][n % 5]) || ['Wednesday'],
+        focusArea: astroInsights?.weekly?.focusAreas?.[0] || userContext.coreValues?.[0] || 'Wealth consciousness',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // Otherwise continue with OpenAI direct generation
     const systemPrompt = `You are the Quantum Wealth Lab AI, a sophisticated market analyst who combines deep market intelligence with personalized cosmic timing.
     
     USER PROFILE & PERSONAL INSIGHTS:
@@ -178,7 +261,39 @@ export async function POST(req: Request) {
       content = content.replace(/```\n?/g, "").trim();
     }
     
-    const insights = JSON.parse(content);
+    // Try to parse JSON, but handle errors gracefully
+    let insights: any = {};
+    try {
+      insights = JSON.parse(content);
+    } catch (parseError) {
+      console.error('JSON parse error, attempting to extract insights:', parseError);
+      // Try to extract key-value pairs from the response
+      const lines = content.split('\n');
+      for (const line of lines) {
+        if (line.includes('daily:') || line.includes('"daily":')) {
+          const match = line.match(/["']?daily["']?\s*:\s*["']([^"']+)["']/i);
+          if (match) insights.daily = match[1];
+        }
+        if (line.includes('market:') || line.includes('"market":')) {
+          const match = line.match(/["']?market["']?\s*:\s*["']([^"']+)["']/i);
+          if (match) insights.market = match[1];
+        }
+        if (line.includes('personal:') || line.includes('"personal":')) {
+          const match = line.match(/["']?personal["']?\s*:\s*["']([^"']+)["']/i);
+          if (match) insights.personal = match[1];
+        }
+      }
+      
+      // If still no insights, use the content as a whole
+      if (Object.keys(insights).length === 0) {
+        const sections = content.split(/\n\n+/);
+        insights = {
+          daily: sections[0] || "Embrace your unique energy today.",
+          market: sections[1] || "Market conditions are favorable for your approach.",
+          personal: sections[2] || "Trust your intuition and stay aligned with your goals."
+        };
+      }
+    }
     
     // Ensure all values are strings (not nested objects)
     const sanitizedInsights: any = {};

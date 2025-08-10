@@ -8,7 +8,10 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { profile, holdings } = await req.json();
+    const { profile, holdings, portfolio } = await req.json();
+    
+    // Use portfolio if provided, otherwise fall back to holdings
+    const userHoldings = portfolio || holdings || [];
     
     // Fetch current market data
     let marketData: any = {};
@@ -34,8 +37,8 @@ export async function POST(req: Request) {
       console.error("Data fetch error:", e);
     }
     
-    // Calculate portfolio performance
-    const portfolioStats = calculatePortfolioStats(holdings, marketData);
+    // Calculate portfolio performance    
+    const portfolioStats = calculatePortfolioStats(userHoldings, marketData);
     
     // Create comprehensive weekly report
     const weeklyData = {
@@ -56,7 +59,7 @@ export async function POST(req: Request) {
         weeklyChange: portfolioStats.weeklyChange,
         topPerformer: portfolioStats.topPerformer,
         worstPerformer: portfolioStats.worstPerformer,
-        holdings: holdings.map((h: any) => ({
+        holdings: userHoldings.map((h: any) => ({
           symbol: h.symbol,
           amount: h.amount,
           value: h.value || 0,
@@ -86,21 +89,40 @@ export async function POST(req: Request) {
       });
     }
     
-    const systemPrompt = `You are creating a comprehensive weekly wealth report for ${profile.name}.
-    They are a ${profile.sunSign} sun, ${profile.moonSign} moon, ${profile.risingSign} rising.
-    Their archetype is ${profile.quantumProfile?.archetype}.
-    Portfolio size: ${profile.portfolioSize}, Risk tolerance: ${profile.riskTolerance}.
-    Primary intention: ${profile.intention}.
+    const systemPrompt = `You are creating a sophisticated weekly wealth report for ${profile.name}.
     
-    Create a detailed, personalized weekly report that:
-    1. Reviews their portfolio performance with specific numbers
-    2. Analyzes each of their holdings individually
-    3. Provides market outlook based on macro trends
-    4. Incorporates astrological timing for the week ahead
-    5. Gives 5 specific, actionable recommendations
-    6. References their personal goals and risk profile
+    PERSONAL INSIGHTS (Critical for personalization):
+    - Primary Intention: "${profile.intention || 'Build sustainable wealth'}"
+    - Biggest Challenge: "${profile.biggestChallenge || 'Timing and confidence'}"
+    - Ideal Outcome: "${profile.idealOutcome || 'Financial independence'}"
+    - Experience Level: ${profile.experience || 'intermediate'}
     
-    Be specific with price levels, percentages, and dates.`;
+    PROFILE:
+    - ${profile.sunSign} sun, ${profile.moonSign} moon, ${profile.risingSign} rising
+    - Wealth Archetype: ${profile.quantumProfile?.archetype || 'Balanced Investor'}
+    - Portfolio Size: ${profile.portfolioSize || 'Building'}
+    - Risk Tolerance: ${profile.riskTolerance || 'Moderate'}
+    - Time Horizon: ${profile.timeHorizon || 'Medium-term'}
+    
+    MARKET CONTEXT:
+    - BTC: $${weeklyData.market.btcPrice?.toLocaleString() || 'N/A'} (${weeklyData.market.btcWeekly > 0 ? '+' : ''}${weeklyData.market.btcWeekly?.toFixed(2) || 0}% weekly)
+    - ETH: $${weeklyData.market.ethPrice?.toLocaleString() || 'N/A'} (${weeklyData.market.ethWeekly > 0 ? '+' : ''}${weeklyData.market.ethWeekly?.toFixed(2) || 0}% weekly)
+    - Portfolio Value: $${portfolioStats.totalValue.toLocaleString()}
+    - Weekly Change: ${portfolioStats.weeklyChange > 0 ? '+' : ''}${portfolioStats.weeklyChange}%
+    
+    REPORT STYLE:
+    1. Start with MARKET ANALYSIS - what happened this week, why, and what it means
+    2. Connect everything to their personal journey and stated goals
+    3. Address their specific challenge: "${profile.biggestChallenge}"
+    4. Guide toward their ideal outcome: "${profile.idealOutcome}"
+    5. Use INVITATIONS not commands: "You might consider...", "One opportunity to explore..."
+    6. Include specific price levels, entry points, and risk management
+    7. Integrate astrology as timing insight, not primary driver
+    8. Be thoughtful and analytical, not promotional
+    9. Acknowledge their ${profile.portfolioSize} portfolio constraints
+    10. End with concrete actions they can take this week
+    
+    Remember: This is guidance from a wise friend who understands both markets and their personal path.`;
     
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -108,17 +130,21 @@ export async function POST(req: Request) {
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Generate a comprehensive weekly report based on this data:
+          content: `Generate a thoughtful weekly wealth report based on this data:
           ${JSON.stringify(weeklyData)}
           
           Structure the report with these sections:
-          1. Executive Summary (3 key points)
-          2. Portfolio Performance (detailed analysis of each holding)
-          3. Market Analysis (macro trends and crypto specific)
-          4. Astrological Forecast (week ahead based on their chart)
-          5. Actionable Recommendations (5 specific actions with reasoning)
-          6. Risk Assessment (current risks and mitigation strategies)
-          7. Week Ahead Outlook (what to watch, key dates)
+          1. Executive Summary - 3 key insights connecting market to their journey
+          2. Market Analysis - What happened, why, specific levels and trends
+          3. Portfolio Review - Performance connected to their goals: "${profile.idealOutcome}"
+          4. Strategic Opportunities - 3-5 invitations to explore (not commands)
+          5. Timing Intelligence - Optimal days combining market and ${profile.sunSign} energy
+          6. Risk Considerations - Addressing their challenge: "${profile.biggestChallenge}"
+          7. Week Ahead - Specific levels, dates, and suggested actions
+          
+          Make it personal to ${profile.name}'s intention: "${profile.intention}"
+          Use market-first language with subtle astrological timing.
+          Frame all suggestions as invitations and possibilities.
           
           Return ONLY valid JSON without markdown formatting.`
         }
