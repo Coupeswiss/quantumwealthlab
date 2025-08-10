@@ -48,9 +48,11 @@ export async function POST(req: Request) {
         generateWealthArchetype(profile.sunSign, profile.moonSign, profile.risingSign) : null);
     
     // Create comprehensive context from user profile with accurate astrology
+    const cleanIntention = (profile?.intention || "").toString().replace(/["“”]+/g, '').trim();
+    const intentionSummary = cleanIntention.length > 120 ? (cleanIntention.split(/\.\s+/)[0] || cleanIntention).slice(0, 120) + '…' : (cleanIntention || 'build sustainable wealth');
     const userContext = {
       name: profile?.name || "Quantum Explorer",
-      intention: profile?.intention || "wealth consciousness expansion",
+      intention: intentionSummary,
       biggestChallenge: profile?.biggestChallenge || "Timing and confidence",
       idealOutcome: profile?.idealOutcome || "Financial independence",
       experience: profile?.experience || "intermediate",
@@ -210,7 +212,7 @@ export async function POST(req: Request) {
     
     USER PROFILE & PERSONAL INSIGHTS:
     - Name: ${userContext.name}
-    - Primary Intention: "${userContext.intention || profile?.intention || 'Build sustainable wealth'}"
+    - Primary Intention: ${userContext.intention || 'Build sustainable wealth'}
     - Biggest Challenge: "${userContext.biggestChallenge || profile?.biggestChallenge || 'Timing and confidence'}"
     - Ideal Outcome: "${userContext.idealOutcome || profile?.idealOutcome || 'Financial independence'}"
     - Knowledge Base: ${userContext.insights?.length || profile?.insights?.length || 0} stored insights
@@ -265,16 +267,16 @@ export async function POST(req: Request) {
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
-        { role: "system", content: systemPrompt },
+        { role: "system", content: systemPrompt + "\nCRITICAL STYLE: Never quote the user's words verbatim. Paraphrase naturally. Do not include quotation marks around user inputs." },
         {
           role: "user",
           content: `Generate sophisticated market-focused insights for ${userContext.name}:
           
           1. Market Analysis ("market"): Current market conditions with specific levels. BTC at $${marketData?.BTC?.price}, ETH at $${marketData?.ETH?.price}. Include support/resistance, volume analysis, and actual trading setups. This should be Bloomberg-quality analysis.
           
-          2. Personal Strategy ("personal"): Connect market conditions to their intention: "${userContext.intention || profile?.intention}". Address their challenge: "${userContext.biggestChallenge || profile?.biggestChallenge}". Guide toward: "${userContext.idealOutcome || profile?.idealOutcome}". Make this deeply relevant.
+          2. Personal Strategy ("personal"): Connect market conditions to their intention: ${userContext.intention}. Address their challenge: ${userContext.biggestChallenge || 'timing and confidence'}. Guide toward: ${userContext.idealOutcome || 'financial independence'}. Make this deeply relevant. Never quote; paraphrase.
           
-          3. Portfolio Guidance ("daily"): ${portfolio && portfolio.length > 0 ? `Specific guidance for holdings: ${portfolio.map((h: any) => h.symbol).join(', ')}` : 'Entry strategy for first positions'}. Consider their ${userContext.portfolioSize || profile?.portfolioSize} portfolio size and ${userContext.riskTolerance} risk profile.
+          3. Portfolio Guidance ("daily"): ${portfolio && portfolio.length > 0 ? `Specific guidance for holdings: ${portfolio.map((h: any) => h.symbol).join(', ')}` : 'Entry strategy for first positions'}. Consider their ${userContext.portfolioSize || 'current'} portfolio size and ${userContext.riskTolerance} risk profile.
           
           4. Timing Intelligence ("astroWeather"): Market timing combining technicals with their ${userContext.sunSign} energy. Current: ${new Date().getDate() <= 14 ? 'Accumulation phase' : 'Distribution phase'}. Provide specific entry/exit windows.
           
@@ -287,7 +289,7 @@ export async function POST(req: Request) {
           Style: Professional market analysis with personalized depth. Think institutional research with personal advisor insight.
           Every point must provide real trading value. No generic affirmations.
           
-          Return ONLY valid JSON. Keys: daily, market, personal, astroWeather, quantumField, luckyTiming, actionStep`
+          Return ONLY valid JSON. Keys: daily, market, personal, astroWeather, quantumField, luckyTiming, actionStep. Absolutely no quotes of user text.`
         }
       ],
       temperature: 0.85,
@@ -336,7 +338,7 @@ export async function POST(req: Request) {
       }
     }
     
-    // Ensure all values are strings (not nested objects)
+    // Ensure all values are strings (not nested objects) and not verbatim quotes
     const sanitizedInsights: any = {};
     for (const [key, value] of Object.entries(insights)) {
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
@@ -389,7 +391,7 @@ export async function POST(req: Request) {
           }
         }
       } else if (typeof value === 'string') {
-        sanitizedInsights[key] = value;
+        sanitizedInsights[key] = value.replace(/\"/g, '"');
       } else if (Array.isArray(value)) {
         sanitizedInsights[key] = value.join(', ');
       } else {
