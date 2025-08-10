@@ -10,7 +10,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { profile, portfolio, marketData } = await req.json();
+    const { profile, portfolio, marketData, astroOnly } = await req.json();
 
     // Resolve freshest market context (fallback to server fetch if not provided)
     let btcPrice = marketData?.BTC?.price || marketData?.btc || marketData?.prices?.BTC?.price;
@@ -87,8 +87,8 @@ export async function POST(req: Request) {
       astroInsights: astroInsights
     };
     
-    // Fallback for no API key with accurate personalized content
-    if (!process.env.OPENAI_API_KEY) {
+    // Astrology-only mode or no API key → return high-quality astrology insights without external data
+    if (astroOnly || !process.env.OPENAI_API_KEY) {
       const dailyInsight = astroInsights?.daily?.[0];
       const wealthInsight = astroInsights?.wealth?.[0];
       

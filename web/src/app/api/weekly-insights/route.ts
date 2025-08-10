@@ -112,7 +112,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { profile, portfolio, lastReportDate } = body;
     
-    // Validate input
+    // Validate input (allow portfolio to be empty; run astrology-only if no holdings)
     if (!profile) {
       return NextResponse.json({
         error: "Profile data is required",
@@ -126,15 +126,24 @@ export async function POST(req: Request) {
       console.log('Report recently generated, but allowing regeneration for testing');
     }
     
-    // Get comprehensive market data
-    const marketData = await getDetailedMarketData(portfolio || []);
-    const news = await getCryptoNews();
+    // If no holdings or no market access, skip external market fetch and generate an astrology-focused report
+    let marketData: any = {};
+    let news: any = {};
+    if (portfolio && Array.isArray(portfolio) && portfolio.length > 0) {
+      try {
+        marketData = await getDetailedMarketData(portfolio);
+        news = await getCryptoNews();
+      } catch {
+        marketData = {};
+        news = {};
+      }
+    }
     
     // Calculate portfolio performance with detailed metrics
-    const portfolioAnalysis = analyzePortfolio(portfolio || [], marketData);
+    const portfolioAnalysis = analyzePortfolio(portfolio || [], marketData || {});
     
     // Generate the weekly report
-    const report = await generatePersonalizedReport(profile, portfolio, marketData, news, portfolioAnalysis);
+    const report = await generatePersonalizedReport(profile, portfolio || [], marketData || {}, news || {}, portfolioAnalysis);
     
     return NextResponse.json({
       report,

@@ -88,7 +88,7 @@ export default function InsightsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           profile,
-          portfolio,
+          portfolio, // may be empty; API now supports astrology-only report
           lastReportDate
         })
       });
