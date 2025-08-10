@@ -28,6 +28,13 @@ export async function POST(req: Request) {
     const userContext = {
       name: profile?.name || "Quantum Explorer",
       intention: profile?.intention || "wealth consciousness expansion",
+      biggestChallenge: profile?.biggestChallenge || "Timing and confidence",
+      idealOutcome: profile?.idealOutcome || "Financial independence",
+      experience: profile?.experience || "intermediate",
+      portfolioSize: profile?.portfolioSize || "Building",
+      timeHorizon: profile?.timeHorizon || "medium-term",
+      insights: profile?.insights || [],
+      journalEntries: profile?.journalEntries || [],
       sunSign: profile?.sunSign || "Unknown",
       moonSign: profile?.moonSign || "Unknown",
       risingSign: profile?.risingSign || "Unknown",
@@ -52,6 +59,8 @@ export async function POST(req: Request) {
       bestInvestments: sunData?.wealthProfile?.bestInvestments || [],
       wealthChallenges: sunData?.wealthProfile?.challenges || [],
       coreValues: sunData?.personality?.coreValues || [],
+      elemental: profile?.elemental || {},
+      quantumProfile: profile?.quantumProfile || {},
       astroInsights: astroInsights
     };
     
@@ -73,40 +82,61 @@ export async function POST(req: Request) {
     }
     
     // Generate deeply personalized insights with OpenAI using accurate astrology
-    const systemPrompt = `You are the Quantum Wealth Lab AI, with access to precise astrological databases and cosmic wisdom.
+    const systemPrompt = `You are the Quantum Wealth Lab AI, a sophisticated market analyst who combines deep market intelligence with personalized cosmic timing.
     
-    ACCURATE User Astrological Profile:
+    USER PROFILE & PERSONAL INSIGHTS:
     - Name: ${userContext.name}
+    - Primary Intention: "${userContext.intention || profile?.intention || 'Build sustainable wealth'}"
+    - Biggest Challenge: "${userContext.biggestChallenge || profile?.biggestChallenge || 'Timing and confidence'}"
+    - Ideal Outcome: "${userContext.idealOutcome || profile?.idealOutcome || 'Financial independence'}"
+    - Knowledge Base: ${userContext.insights?.length || profile?.insights?.length || 0} stored insights
+    - Journal Reflections: ${userContext.journalEntries?.length || profile?.journalEntries?.length || 0} entries
+    
+    ASTROLOGICAL PROFILE:
     - Sun Sign: ${userContext.sunSign} (${userContext.sunElement} element, ${userContext.sunModality} modality)
     - Moon Sign: ${userContext.moonSign} (${userContext.moonElement} element)
     - Rising Sign: ${userContext.risingSign} (${userContext.risingElement} element)
     - Wealth Archetype: ${userContext.archetype}
-    - Natural Wealth Style: ${userContext.wealthStyle}
+    - Natural Investment Style: ${userContext.wealthStyle}
     - Core Motivation: ${userContext.sunMotivation}
-    - Risk Profile: ${userContext.riskTolerance} (Natural: ${userContext.naturalRisk})
-    - Core Values: ${userContext.coreValues.join(", ")}
-    - Wealth Strengths: ${userContext.strengths.join(", ")}
-    - Wealth Challenges: ${userContext.wealthChallenges.join(", ")}
-    - Best Investments: ${userContext.bestInvestments.join(", ")}
-    - Lucky Numbers: ${userContext.luckyNumbers.join(", ")}
-    - Power Colors: ${userContext.powerColors.join(", ")}
-    - Core Intention: ${userContext.intention}
     
-    Current Astrological Insights:
-    Daily: ${JSON.stringify(userContext.astroInsights?.daily?.[0], null, 2)}
-    Wealth: ${JSON.stringify(userContext.astroInsights?.wealth?.[0], null, 2)}
-    Weekly Lucky Days: ${userContext.astroInsights?.weekly?.luckyDays?.join(", ")}
+    INVESTMENT PROFILE:
+    - Portfolio Size: ${userContext.portfolioSize || profile?.portfolioSize || 'Building'}
+    - Risk Tolerance: ${userContext.riskTolerance} (Natural: ${userContext.naturalRisk})
+    - Experience Level: ${userContext.experience || profile?.experience || 'Intermediate'}
+    - Time Horizon: ${userContext.timeHorizon || profile?.timeHorizon || 'Medium-term'}
     
-    Current Context:
+    MARKET CONTEXT:
+    - BTC: $${marketData?.BTC?.price?.toLocaleString() || 'N/A'} (${marketData?.BTC?.change24h > 0 ? '+' : ''}${marketData?.BTC?.change24h?.toFixed(2) || 0}%)
+    - ETH: $${marketData?.ETH?.price?.toLocaleString() || 'N/A'} (${marketData?.ETH?.change24h > 0 ? '+' : ''}${marketData?.ETH?.change24h?.toFixed(2) || 0}%)
     - Portfolio Value: $${userContext.portfolioValue}
-    - Market Trend: ${userContext.marketTrend}
-    - Moon Phase: ${userContext.currentTransits?.moonPhase || 'Unknown'}
-    - Mercury Retrograde: ${userContext.currentTransits?.mercuryRetrograde ? 'Yes' : 'No'}
+    - Market Trend: ${marketData?.BTC?.change24h > 2 ? 'Strong Uptrend' : marketData?.BTC?.change24h > 0 ? 'Mild Uptrend' : marketData?.BTC?.change24h > -2 ? 'Mild Downtrend' : 'Strong Downtrend'}
+    - Volume: ${marketData?.BTC?.volume24h > 30000000000 ? 'High Activity' : 'Normal Activity'}
     
-    Style: Use the ACCURATE astrological data provided above. Reference specific sign qualities, elements, and modalities.
-    Connect their ${userContext.sunElement} sun, ${userContext.moonElement} moon, and ${userContext.risingElement} rising energies.
-    Address their specific wealth challenges and leverage their strengths.
-    Make precise connections between their astrological profile and market opportunities.`;
+    TIMING ELEMENTS:
+    - Lucky Days: ${userContext.astroInsights?.weekly?.luckyDays?.join(", ") || "Tuesday, Thursday"}
+    - Power Numbers: ${userContext.luckyNumbers.join(", ")}
+    - Moon Phase: ${userContext.currentTransits?.moonPhase || new Date().getDate() <= 7 ? 'New Moon' : new Date().getDate() <= 14 ? 'Waxing' : new Date().getDate() <= 21 ? 'Full Moon' : 'Waning'}
+    - Mercury Retrograde: ${userContext.currentTransits?.mercuryRetrograde ? 'Yes - Exercise caution' : 'No - Clear for action'}
+    
+    GENERATION GUIDELINES:
+    1. START with concrete market analysis - price levels, support/resistance, volume patterns
+    2. CONNECT market opportunities directly to their stated intention and challenges
+    3. PROVIDE specific entry points, position sizes, and risk management levels
+    4. ADDRESS their personal challenge ("${userContext.biggestChallenge || profile?.biggestChallenge}") with practical solutions
+    5. GUIDE toward their ideal outcome ("${userContext.idealOutcome || profile?.idealOutcome}") with actionable steps
+    6. USE market terminology: "liquidity zones", "order flow", "market structure", not spiritual platitudes
+    7. INTEGRATE astrology subtly - as timing insight, not primary driver
+    8. REFERENCE their ${userContext.wealthStyle} investment style with specific strategies
+    9. SUGGEST concrete actions based on their ${userContext.portfolioSize || 'current'} portfolio size
+    10. END with one specific action they can take immediately
+    
+    CRITICAL: Be a thoughtful market strategist, not a fortune teller. Every insight must have practical trading value.
+    Connect their ${userContext.sunElement} nature to market dynamics, not abstract concepts.
+    Their ${userContext.archetype} archetype needs ${userContext.wealthStyle === 'aggressive' ? 'high-conviction trades' : userContext.wealthStyle === 'conservative' ? 'risk-managed entries' : 'balanced positioning'}.
+    
+    Remember: ${userContext.name} wants real market intelligence that honors their personal journey.
+    Build on their knowledge base: ${userContext.insights?.length > 0 ? 'Previous insights stored' : 'Building their knowledge'}.`;
     
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
@@ -114,16 +144,26 @@ export async function POST(req: Request) {
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `Generate personalized insights using the ACCURATE astrological data provided:
-          1. Daily affirmation (must reference their ${userContext.sunSign} ${userContext.sunElement} sun, ${userContext.moonSign} ${userContext.moonElement} moon, and ${userContext.archetype} archetype)
-          2. Market observation (connect their ${userContext.wealthStyle} style to current market, suggest specific investments from: ${userContext.bestInvestments.join(", ")})
-          3. Personal guidance (address their intention: "${userContext.intention}" and wealth challenges: ${userContext.wealthChallenges.join(", ")})
-          4. Astro weather report (explain how ${userContext.currentTransits?.sun || 'current'} sun transit affects their ${userContext.sunSign} ${userContext.sunElement} nature)
-          5. Quantum field message (activation codes for ${userContext.sunMotivation})
-          6. Lucky timing (reference their lucky days: ${userContext.astroInsights?.weekly?.luckyDays?.join(", ")} and numbers: ${userContext.luckyNumbers.join(", ")})
-          7. Action step (specific to their ${userContext.sunSign} sign and ${userContext.wealthStyle})
+          content: `Generate sophisticated market-focused insights for ${userContext.name}:
           
-          Return ONLY valid JSON without markdown formatting. Keys: daily, market, personal, astroWeather, quantumField, luckyTiming, actionStep`
+          1. Market Analysis ("market"): Current market conditions with specific levels. BTC at $${marketData?.BTC?.price}, ETH at $${marketData?.ETH?.price}. Include support/resistance, volume analysis, and actual trading setups. This should be Bloomberg-quality analysis.
+          
+          2. Personal Strategy ("personal"): Connect market conditions to their intention: "${userContext.intention || profile?.intention}". Address their challenge: "${userContext.biggestChallenge || profile?.biggestChallenge}". Guide toward: "${userContext.idealOutcome || profile?.idealOutcome}". Make this deeply relevant.
+          
+          3. Portfolio Guidance ("daily"): ${portfolio && portfolio.length > 0 ? `Specific guidance for holdings: ${portfolio.map((h: any) => h.symbol).join(', ')}` : 'Entry strategy for first positions'}. Consider their ${userContext.portfolioSize || profile?.portfolioSize} portfolio size and ${userContext.riskTolerance} risk profile.
+          
+          4. Timing Intelligence ("astroWeather"): Market timing combining technicals with their ${userContext.sunSign} energy. Current: ${new Date().getDate() <= 14 ? 'Accumulation phase' : 'Distribution phase'}. Provide specific entry/exit windows.
+          
+          5. Strategic Wisdom ("quantumField"): Deep market insight connecting their ${userContext.archetype} archetype with opportunities. This should be profound market understanding, NOT affirmations.
+          
+          6. Opportunity Windows ("luckyTiming"): Specific times and price levels. Power days: ${userContext.astroInsights?.weekly?.luckyDays?.join(", ") || 'Tuesday, Thursday'}. Key levels using their numbers: ${userContext.luckyNumbers?.join(", ") || '3, 7, 9'}.
+          
+          7. Immediate Action ("actionStep"): ONE specific thing to do NOW - set an alert at $X, research protocol Y, adjust position Z. Make it concrete and valuable.
+          
+          Style: Professional market analysis with personalized depth. Think institutional research with personal advisor insight.
+          Every point must provide real trading value. No generic affirmations.
+          
+          Return ONLY valid JSON. Keys: daily, market, personal, astroWeather, quantumField, luckyTiming, actionStep`
         }
       ],
       temperature: 0.85,
@@ -144,15 +184,58 @@ export async function POST(req: Request) {
     const sanitizedInsights: any = {};
     for (const [key, value] of Object.entries(insights)) {
       if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-        // If it's an object, convert to string or extract the main content
-        if ('observation' in (value as any) && 'specificInvestments' in (value as any)) {
-          // Handle the specific error case
-          sanitizedInsights[key] = `${(value as any).observation} Consider: ${(value as any).specificInvestments?.join(', ') || 'diversified portfolio'}`;
+        // If it's an object, extract the meaningful content
+        const obj = value as any;
+        
+        // Common patterns in OpenAI responses
+        if (obj.observation) {
+          // Extract observation and combine with other fields
+          let content = obj.observation;
+          if (obj.specificInvestments && Array.isArray(obj.specificInvestments)) {
+            content += ` Consider: ${obj.specificInvestments.join(', ')}`;
+          }
+          if (obj.action) {
+            content += ` Action: ${obj.action}`;
+          }
+          sanitizedInsights[key] = content;
+        } else if (obj.guidance) {
+          // Extract guidance and challenges
+          let content = obj.guidance;
+          if (obj.challenges) {
+            content += ` ${obj.challenges}`;
+          }
+          sanitizedInsights[key] = content;
+        } else if (obj.message) {
+          // Simple message field
+          sanitizedInsights[key] = obj.message;
+        } else if (obj.content) {
+          // Content field
+          sanitizedInsights[key] = obj.content;
+        } else if (obj.text) {
+          // Text field
+          sanitizedInsights[key] = obj.text;
         } else {
-          sanitizedInsights[key] = JSON.stringify(value);
+          // Try to extract first string value or create a readable format
+          const firstStringValue = Object.values(obj).find(v => typeof v === 'string');
+          if (firstStringValue) {
+            sanitizedInsights[key] = firstStringValue as string;
+          } else {
+            // Create a readable format from the object
+            const parts = [];
+            for (const [k, v] of Object.entries(obj)) {
+              if (typeof v === 'string') {
+                parts.push(v);
+              } else if (Array.isArray(v)) {
+                parts.push(v.join(', '));
+              }
+            }
+            sanitizedInsights[key] = parts.join(' ') || 'Insight processing...';
+          }
         }
       } else if (typeof value === 'string') {
         sanitizedInsights[key] = value;
+      } else if (Array.isArray(value)) {
+        sanitizedInsights[key] = value.join(', ');
       } else {
         sanitizedInsights[key] = String(value || '');
       }

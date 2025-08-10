@@ -227,6 +227,63 @@ export default function DashboardHome() {
     return `$${(volume / 1e3).toFixed(1)}K`;
   };
 
+  const formatInsightText = (insight: any): string => {
+    if (typeof insight === 'string') {
+      return insight;
+    }
+    
+    if (typeof insight === 'object' && insight !== null) {
+      // Handle common patterns in insight objects
+      if (insight.observation) {
+        let text = insight.observation;
+        if (insight.specificInvestments) {
+          text += ` Consider: ${Array.isArray(insight.specificInvestments) ? insight.specificInvestments.join(', ') : insight.specificInvestments}`;
+        }
+        if (insight.action) {
+          text += ` ${insight.action}`;
+        }
+        return text;
+      }
+      
+      if (insight.guidance) {
+        let text = insight.guidance;
+        if (insight.challenges) {
+          text += ` ${insight.challenges}`;
+        }
+        return text;
+      }
+      
+      if (insight.message) {
+        return insight.message;
+      }
+      
+      if (insight.content) {
+        return insight.content;
+      }
+      
+      if (insight.text) {
+        return insight.text;
+      }
+      
+      // Try to extract any string values from the object
+      const values = Object.values(insight);
+      const stringValue = values.find(v => typeof v === 'string');
+      if (stringValue) {
+        return stringValue as string;
+      }
+      
+      // Last resort: join all string values
+      const strings = values.filter(v => typeof v === 'string');
+      if (strings.length > 0) {
+        return strings.join(' ');
+      }
+      
+      return 'Loading insight...';
+    }
+    
+    return String(insight || 'Generating insight...');
+  };
+
   return (
     <div className="space-y-6">
       {/* Header with live time */}
@@ -285,19 +342,19 @@ export default function DashboardHome() {
               <div className="p-4 rounded-lg bg-gradient-to-r from-cyan-500/10 to-blue-500/10 border border-cyan-500/30">
                 <div className="text-xs font-bold text-cyan-400 mb-2">DAILY ENERGY</div>
                 <p className="text-sm leading-relaxed text-white">
-                  {typeof insights.daily === 'string' ? insights.daily : JSON.stringify(insights.daily)}
+                  {formatInsightText(insights.daily)}
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-gradient-to-r from-blue-500/10 to-purple-500/10 border border-blue-500/30">
                 <div className="text-xs font-bold text-blue-400 mb-2">MARKET PULSE</div>
                 <p className="text-sm leading-relaxed text-white">
-                  {typeof insights.market === 'string' ? insights.market : JSON.stringify(insights.market)}
+                  {formatInsightText(insights.market)}
                 </p>
               </div>
               <div className="p-4 rounded-lg bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30">
                 <div className="text-xs font-bold text-purple-400 mb-2">PERSONAL GUIDANCE</div>
                 <p className="text-sm leading-relaxed text-white">
-                  {typeof insights.personal === 'string' ? insights.personal : JSON.stringify(insights.personal)}
+                  {formatInsightText(insights.personal)}
                 </p>
               </div>
             </div>
