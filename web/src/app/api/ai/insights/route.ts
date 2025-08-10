@@ -89,17 +89,42 @@ export async function POST(req: Request) {
       astroInsights: astroInsights
     };
     
-    // Astrology-only mode or no API key → return high-quality astrology insights without external data
+    // Astrology-only mode or no API key → generate insights without external market data
     if (astroOnly || !process.env.OPENAI_API_KEY) {
       const dailyInsight = astroInsights?.daily?.[0];
       const wealthInsight = astroInsights?.wealth?.[0];
-      
+
+      // Generate Personal Guidance via the Wisdom agent to ensure natural, AI-generated guidance
+      let personalGuidance = '';
+      try {
+        const wisdomRes = await fetch(`${getBaseUrl()}/api/ai/agents`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            profile: { ...profile, intention: intentionSummary },
+            portfolio: Array.isArray(portfolio) ? portfolio : [],
+            marketData: { trend: userContext.marketTrend },
+            agentType: 'wisdom',
+            question: `Using their intention (${intentionSummary}), generate 2-3 sentences of personal wealth guidance. Do NOT quote the user's words; paraphrase naturally. Connect to their ${userContext.sunSign} sun and ${userContext.moonSign} moon.`
+          })
+        });
+        if (wisdomRes.ok) {
+          const wisdom = await wisdomRes.json();
+          personalGuidance = wisdom?.insights?.wisdom?.message || wisdom?.insights?.wisdom || wisdom?.message || '';
+        }
+      } catch {}
+
+      // Fallback personal guidance if agent unavailable
+      if (!personalGuidance) {
+        personalGuidance = `Your path centers on ${intentionSummary}. Lean into your ${userContext.sunSign} strengths and let your ${userContext.moonSign} intuition guide the timing. Choose one simple, consistent action you can take this week to move closer to your goal.`;
+      }
+
       return NextResponse.json({
         daily: dailyInsight?.message || `${userContext.name}, as ${userContext.archetype}, your ${userContext.sunSign} ${userContext.sunElement} energy is powerful today. ${sunData?.personality?.motivation || 'Channel your inner strength into manifestation.'}`,
-        market: wealthInsight?.message || `Market energies align with your ${userContext.wealthStyle}. ${sunData?.wealthProfile?.moneyMindset || 'Your approach resonates with current cycles.'}`,
-        personal: `Your intention of "${userContext.intention}" is supported by your ${userContext.moonSign} ${userContext.moonElement} moon. ${moonData?.personality?.motivation || 'Trust your intuition for timing.'}`,
+        market: wealthInsight?.message || `Your natural ${userContext.wealthStyle} style is well supported by your elemental balance. Stay aligned with process and discipline.`,
+        personal: personalGuidance,
         astroWeather: astroInsights?.transits?.[0]?.message || `${userContext.sunSign} sun (${userContext.sunElement} ${userContext.sunModality}) merges with ${userContext.currentTransits?.sun || 'cosmic'} energies. ${sunData?.wealthProfile?.riskTolerance || 'Favorable for your risk profile.'}`,
-        quantumField: astroInsights?.weekly?.overview || "The field is receptive to your unique frequency. Abundance codes are activating through your elemental balance.",
+        quantumField: astroInsights?.weekly?.overview || 'The field is receptive to your unique frequency. Abundance codes are activating through your elemental balance.',
         luckyDays: astroInsights?.weekly?.luckyDays || userContext.luckyNumbers?.map(n => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][n % 5]) || ['Wednesday'],
         focusArea: astroInsights?.weekly?.focusAreas?.[0] || userContext.coreValues?.[0] || 'Wealth consciousness',
         timestamp: new Date().toISOString()
