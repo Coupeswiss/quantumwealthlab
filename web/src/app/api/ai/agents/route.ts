@@ -156,8 +156,8 @@ Your response: 3-4 sentences of sophisticated market intelligence that ${profile
             },
             { role: "user", content: prompt }
           ],
-          temperature: 0.7,
-          max_tokens: 250,
+          temperature: 0.35,
+          max_tokens: 160,
         });
 
         insights[agent] = {

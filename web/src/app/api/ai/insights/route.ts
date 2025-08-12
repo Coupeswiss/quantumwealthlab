@@ -119,7 +119,7 @@ export async function POST(req: Request) {
             portfolio: Array.isArray(portfolio) ? portfolio : [],
             marketData: { trend: userContext.marketTrend },
             agentType: 'wisdom',
-            question: `Using their intention (${intentionSummary}), generate 2-3 sentences of personal wealth guidance. Do NOT quote the user's words; paraphrase naturally. Connect to their ${userContext.sunSign} sun and ${userContext.moonSign} moon.`
+            question: `Using their intention (${intentionSummary}), generate TWO short sentences of personal wealth guidance. Be specific and actionable (1 concrete step, e.g., set an alert at $X or reduce position by Y%). Avoid generic phrasing. Reference current BTC/ETH context when relevant. Do NOT quote the user's words; paraphrase naturally. Subtle nod to ${userContext.sunSign} sun / ${userContext.moonSign} moon is okay but keep market-first.`
           })
         });
         if (wisdomRes.ok) {

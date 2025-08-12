@@ -134,7 +134,7 @@ export default function DashboardHome() {
               btcChange: prices.BTC?.change24h,
               ethChange: prices.ETH?.change24h
             },
-            astroOnly: true
+            astroOnly: false
           }),
         });
         
