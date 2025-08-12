@@ -10,7 +10,7 @@ const openai = new OpenAI({
 
 export async function POST(req: Request) {
   try {
-    const { profile, portfolio, marketData, astroOnly } = await req.json();
+    const { profile, portfolio, marketData, astroOnly, strict } = await req.json();
 
     // Resolve freshest market context (fallback to server fetch if not provided)
     let btcPrice = marketData?.BTC?.price || marketData?.btc || marketData?.prices?.BTC?.price;
@@ -104,7 +104,7 @@ export async function POST(req: Request) {
     };
     
     // Astrology-only mode or no API key → generate insights without external market data
-    if (astroOnly || !process.env.OPENAI_API_KEY) {
+    if ((astroOnly && !strict) || !process.env.OPENAI_API_KEY) {
       const dailyInsight = astroInsights?.daily?.[0];
       const wealthInsight = astroInsights?.wealth?.[0];
 
@@ -204,7 +204,7 @@ export async function POST(req: Request) {
         marketInsight = marketResponseData.insights?.technical || marketResponseData.message || "";
       }
       
-      // Personal Guidance - Wisdom Agent
+      // Personal Guidance - Wisdom Agent (strict, concise, anchored)
       const personalResponse = await fetch(`${agentsBaseUrl}/api/ai/agents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -213,13 +213,25 @@ export async function POST(req: Request) {
           portfolio,
           marketData,
           agentType: 'wisdom',
-          question: `Provide personal wealth guidance for ${userContext.name} to overcome "${userContext.biggestChallenge}" and achieve "${userContext.idealOutcome}". Consider their ${userContext.riskTolerance} risk tolerance and ${userContext.experience} experience level.`
+          question: `Provide TWO short sentences of personal guidance for ${userContext.name} to overcome "${userContext.biggestChallenge}" and achieve "${userContext.idealOutcome}". Be SPECIFIC and ACTIONABLE with one concrete step, and ANCHOR any numeric level within 10% of BTC ($${btcPrice}) or ETH ($${ethPrice}) or the user's holdings. BAN phrases: generic market platitudes, 'historically found', 'capitulation'. Keep it under 45 words total.`
         })
       });
       
       if (personalResponse.ok) {
         const personalData = await personalResponse.json();
         personalInsight = personalData.insights?.wisdom || personalData.message || "";
+      }
+      // Deterministic price-anchored fallback if AI response is empty or too short
+      if (!personalInsight || personalInsight.length < 16) {
+        const symbol = (Array.isArray(portfolio) && portfolio[0]?.symbol ? String(portfolio[0].symbol).toUpperCase() : 'BTC');
+        const refPrice = marketData?.prices?.[symbol]?.price || (symbol === 'ETH' ? ethPrice : btcPrice);
+        if (typeof refPrice === 'number' && refPrice > 0) {
+          const support = Math.floor(refPrice * 0.95);
+          const resistance = Math.ceil(refPrice * 1.05);
+          personalInsight = `Focus entries near $${support.toLocaleString()} with tight risk below support; size per your ${userContext.riskTolerance || 'moderate'} profile. Set an alert at $${resistance.toLocaleString()} to reassess momentum.`;
+        } else {
+          personalInsight = `Keep positions sized to your ${userContext.riskTolerance || 'moderate'} risk profile and use alerts at key levels once live data loads.`;
+        }
       }
       // Light web research to ground the analysis (best effort)
       try {
