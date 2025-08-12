@@ -90,14 +90,14 @@ export default function Onboarding() {
       localStorage.setItem("qwl_profile", JSON.stringify(formData));
       localStorage.setItem("qwl_onboarded", "true");
       
-      // Generate initial AI insights for the user
+      // Generate initial AI insights for the user (use supported agent)
       await fetch("/api/ai/agents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           profile: fullProfile,
-          agentType: "overview",
-          prompt: "Welcome the user and provide their initial quantum wealth activation message"
+          agentType: "wisdom",
+          question: "Welcome the user and provide their initial quantum wealth activation message tailored to their profile."
         }),
       });
       

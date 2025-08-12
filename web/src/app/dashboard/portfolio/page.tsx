@@ -98,6 +98,8 @@ export default function PortfolioPage() {
   // Save holdings
   function saveHoldings(updated: Holding[]) {
     setHoldings(updated);
+    
+    // Save in qwl-wallets format for compatibility
     localStorage.setItem("qwl-wallets", JSON.stringify({
       state: { 
         wallets: updated.map(h => ({
@@ -107,22 +109,30 @@ export default function PortfolioPage() {
           symbol: h.symbol,
           name: h.asset,
           amount: h.amount,
-          balance: h.value || 0,
-          purchasePrice: h.purchasePrice,
+          balance: h.amount, // Use amount not value for balance field
+          purchasePrice: h.purchasePrice || 0,
+          currentPrice: h.currentPrice || 0,
+          value: h.value || 0,
+          change24h: h.change24h || 0,
         }))
       },
       version: 0
     }));
     
+    // Also save in portfolio format for portfolio-utils
+    localStorage.setItem('portfolio', JSON.stringify(updated));
+    
     // Also update profile with holdings
     const profileStored = localStorage.getItem("qwl-profile");
     if (profileStored) {
       const profile = JSON.parse(profileStored);
-      profile.state.profile.currentHoldings = updated.map(h => ({
-        symbol: h.symbol,
-        amount: h.amount,
-      }));
-      localStorage.setItem("qwl-profile", JSON.stringify(profile));
+      if (profile.state && profile.state.profile) {
+        profile.state.profile.currentHoldings = updated.map(h => ({
+          symbol: h.symbol,
+          amount: h.amount,
+        }));
+        localStorage.setItem("qwl-profile", JSON.stringify(profile));
+      }
     }
   }
 

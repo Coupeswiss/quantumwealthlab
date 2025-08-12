@@ -79,9 +79,10 @@ async function generateAISignals(marketData: any, indicators: any) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         profile: { name: 'Market Analysis' },
-        agentType: 'research',
-        prompt: `Generate key market signals based on current data: BTC at $${marketData.prices?.BTC?.price || 100000} (${marketData.prices?.BTC?.change24h || 0}%), Fear & Greed at ${marketData.fearGreedIndex?.value || 65}. Provide actionable signals with specific price levels and clear sentiment.`,
-        context: { market: marketData, indicators }
+        agentType: 'technical',
+        question: `Generate key market signals based on current data: BTC at $${marketData.prices?.BTC?.price || 100000} (${marketData.prices?.BTC?.change24h || 0}%), Fear & Greed at ${marketData.fearGreedIndex?.value || 65}. Provide actionable signals with specific price levels and clear sentiment.`,
+        marketData,
+        portfolio: [],
       })
     });
 

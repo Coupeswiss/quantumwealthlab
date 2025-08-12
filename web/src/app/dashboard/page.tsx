@@ -48,7 +48,7 @@ export default function DashboardHome() {
   // Load profile from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const savedProfile = localStorage.getItem("qwl_profile");
+      const savedProfile = localStorage.getItem("qwl-profile");
       if (savedProfile) setProfile(JSON.parse(savedProfile));
     }
   }, []);

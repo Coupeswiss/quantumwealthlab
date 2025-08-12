@@ -83,6 +83,14 @@ export function savePortfolio(holdings: Holding[]) {
 // Get user profile with all details
 export function getUserProfile() {
   try {
+    // First try the correct key used by the profile page
+    const qwlProfileData = localStorage.getItem('qwl-profile');
+    if (qwlProfileData) {
+      const parsed = JSON.parse(qwlProfileData);
+      return parsed.state?.profile || parsed;
+    }
+    
+    // Fallback to legacy key
     const profileData = localStorage.getItem('userProfile');
     if (profileData) {
       return JSON.parse(profileData);
