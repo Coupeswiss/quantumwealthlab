@@ -49,7 +49,21 @@ export async function POST(req: Request) {
     
     // Create comprehensive context from user profile with accurate astrology
     const cleanIntention = (profile?.intention || "").toString().replace(/["“”]+/g, '').trim();
-    const intentionSummary = cleanIntention.length > 120 ? (cleanIntention.split(/\.\s+/)[0] || cleanIntention).slice(0, 120) + '…' : (cleanIntention || 'build sustainable wealth');
+    const intentionSummary = cleanIntention.length > 120
+      ? (cleanIntention.split(/\.\s+/)[0] || cleanIntention).slice(0, 120) + '…'
+      : (cleanIntention || 'build sustainable wealth');
+
+    // Utility: sanitize any AI/string output to avoid leaking undefined/null and extra spaces
+    const sanitizeText = (text: unknown): string => {
+      if (text == null) return '';
+      const asString = typeof text === 'string' ? text : JSON.stringify(text);
+      return asString
+        .replace(/\bundefined\b/gi, '')
+        .replace(/\bnull\b/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/\s+([.,!?;:])/g, '$1')
+        .trim();
+    };
     const userContext = {
       name: profile?.name || "Quantum Explorer",
       intention: intentionSummary,
@@ -111,18 +125,31 @@ export async function POST(req: Request) {
         if (wisdomRes.ok) {
           const wisdom = await wisdomRes.json();
           personalGuidance = wisdom?.insights?.wisdom?.message || wisdom?.insights?.wisdom || wisdom?.message || '';
+          personalGuidance = sanitizeText(personalGuidance);
         }
       } catch {}
 
       // Fallback personal guidance if agent unavailable
       if (!personalGuidance) {
-        personalGuidance = `Your path centers on ${intentionSummary}. Lean into your ${userContext.sunSign} strengths and let your ${userContext.moonSign} intuition guide the timing. Choose one simple, consistent action you can take this week to move closer to your goal.`;
+        const safeSun = userContext.sunSign || 'your';
+        const safeMoon = userContext.moonSign || 'your';
+        const safeIntention = intentionSummary || 'your wealth goal';
+        personalGuidance = sanitizeText(
+          `Your path centers on ${safeIntention}. Lean into your ${safeSun} strengths and let your ${safeMoon} intuition guide the timing. Choose one simple, consistent action this week to move closer to your goal.`
+        );
       }
 
+      const safeName = userContext.name || 'Explorer';
+      const safeArchetype = userContext.archetype || 'Wealth Builder';
+      const safeSun = userContext.sunSign || 'your';
+      const safeSunElement = userContext.sunElement || '';
+      const dailyText = dailyInsight?.message || `${safeName}, as ${safeArchetype}, your ${safeSun} ${safeSunElement} energy is supportive today. ${sunData?.personality?.motivation || 'Channel your strengths into steady progress.'}`;
+      const marketText = wealthInsight?.message || `Your natural ${userContext.wealthStyle || 'balanced'} style is supported by current conditions. Stay aligned with process and risk discipline.`;
+
       return NextResponse.json({
-        daily: dailyInsight?.message || `${userContext.name}, as ${userContext.archetype}, your ${userContext.sunSign} ${userContext.sunElement} energy is powerful today. ${sunData?.personality?.motivation || 'Channel your inner strength into manifestation.'}`,
-        market: wealthInsight?.message || `Your natural ${userContext.wealthStyle} style is well supported by your elemental balance. Stay aligned with process and discipline.`,
-        personal: personalGuidance,
+        daily: sanitizeText(dailyText),
+        market: sanitizeText(marketText),
+        personal: sanitizeText(personalGuidance),
         astroWeather: astroInsights?.transits?.[0]?.message || `${userContext.sunSign} sun (${userContext.sunElement} ${userContext.sunModality}) merges with ${userContext.currentTransits?.sun || 'cosmic'} energies. ${sunData?.wealthProfile?.riskTolerance || 'Favorable for your risk profile.'}`,
         quantumField: astroInsights?.weekly?.overview || 'The field is receptive to your unique frequency. Abundance codes are activating through your elemental balance.',
         luckyDays: astroInsights?.weekly?.luckyDays || userContext.luckyNumbers?.map(n => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][n % 5]) || ['Wednesday'],
@@ -221,9 +248,9 @@ export async function POST(req: Request) {
     // If agent calls succeeded and we have insights, return them
     if (dailyInsight || marketInsight || personalInsight) {
       return NextResponse.json({
-        daily: dailyInsight || astroInsights?.daily?.[0]?.message || `${userContext.name}, as ${userContext.archetype}, embrace your ${userContext.sunSign} energy today.`,
-        market: marketInsight || astroInsights?.wealth?.[0]?.message || `Market conditions align with your ${userContext.wealthStyle} approach.`,
-        personal: personalInsight || `Trust your ${userContext.moonSign} intuition as you work toward ${userContext.idealOutcome}.`,
+        daily: sanitizeText(dailyInsight || astroInsights?.daily?.[0]?.message || `${userContext.name || 'Explorer'}, as ${userContext.archetype || 'Wealth Builder'}, embrace your ${userContext.sunSign || 'core'} energy today.`),
+        market: sanitizeText(marketInsight || astroInsights?.wealth?.[0]?.message || `Market conditions align with your ${userContext.wealthStyle || 'current'} approach.`),
+        personal: sanitizeText(personalInsight || `Trust your ${userContext.moonSign || 'intuitive'} guidance as you work toward ${userContext.idealOutcome || 'your goal'}.`),
         astroWeather: astroInsights?.transits?.[0]?.message || `${userContext.sunSign} energies are active in the current market cycle.`,
         quantumField: astroInsights?.weekly?.overview || "Your unique frequency resonates with abundance opportunities.",
         luckyDays: astroInsights?.weekly?.luckyDays || userContext.luckyNumbers?.map(n => ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'][n % 5]) || ['Wednesday'],

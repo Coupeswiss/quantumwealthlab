@@ -232,8 +232,15 @@ export default function DashboardHome() {
   };
 
   const formatInsightText = (insight: any): string => {
+    const sanitize = (text: string) => text
+      .replace(/\bundefined\b/gi, '')
+      .replace(/\bnull\b/gi, '')
+      .replace(/\s{2,}/g, ' ')
+      .replace(/\s+([.,!?;:])/g, '$1')
+      .trim();
+
     if (typeof insight === 'string') {
-      return insight;
+      return sanitize(insight);
     }
     
     if (typeof insight === 'object' && insight !== null) {
@@ -246,7 +253,7 @@ export default function DashboardHome() {
         if (insight.action) {
           text += ` ${insight.action}`;
         }
-        return text;
+        return sanitize(text);
       }
       
       if (insight.guidance) {
@@ -254,38 +261,38 @@ export default function DashboardHome() {
         if (insight.challenges) {
           text += ` ${insight.challenges}`;
         }
-        return text;
+        return sanitize(text);
       }
       
       if (insight.message) {
-        return insight.message;
+        return sanitize(insight.message);
       }
       
       if (insight.content) {
-        return insight.content;
+        return sanitize(insight.content);
       }
       
       if (insight.text) {
-        return insight.text;
+        return sanitize(insight.text);
       }
       
       // Try to extract any string values from the object
       const values = Object.values(insight);
       const stringValue = values.find(v => typeof v === 'string');
       if (stringValue) {
-        return stringValue as string;
+        return sanitize(stringValue as string);
       }
       
       // Last resort: join all string values
       const strings = values.filter(v => typeof v === 'string');
       if (strings.length > 0) {
-        return strings.join(' ');
+        return sanitize(strings.join(' '));
       }
       
       return 'Loading insight...';
     }
     
-    return String(insight || 'Generating insight...');
+    return sanitize(String(insight || 'Generating insight...'));
   };
 
   return (
