@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 
+// Disable caching to ensure fresh prices
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // Fetch real crypto prices from CoinGecko (free tier)
 export async function GET() {
   try {
@@ -86,12 +90,17 @@ export async function GET() {
   } catch (error) {
     console.error("Error fetching crypto prices:", error);
     
-    // Fallback to realistic static prices if API fails
+    // Return error with real market context instead of stale data
     return NextResponse.json({
-      BTC: { price: 97250.50, change24h: 2.3, volume: 28500000000, marketCap: 1900000000000, timestamp: new Date().toISOString() },
-      ETH: { price: 3385.20, change24h: -1.2, volume: 15200000000, marketCap: 406000000000, timestamp: new Date().toISOString() },
-      SOL: { price: 189.45, change24h: 5.7, volume: 2100000000, marketCap: 87000000000, timestamp: new Date().toISOString() },
-      QBIT: { price: 0.0042, change24h: 12.5, volume: 150000, marketCap: 4200000, timestamp: new Date().toISOString() }
-    });
+      error: "Price feed temporarily unavailable",
+      message: "Unable to fetch live prices. Please refresh in a moment.",
+      timestamp: new Date().toISOString(),
+      // Provide rough estimates based on last known market conditions
+      estimates: {
+        BTC: { range: "$115k-120k", trend: "Check live data" },
+        ETH: { range: "$4.2k-4.4k", trend: "Check live data" },
+        SOL: { range: "$180-200", trend: "Check live data" }
+      }
+    }, { status: 503 });
   }
 }
