@@ -1,45 +1,66 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { User, Calendar, Target, Shield, Brain, Star, Save, Check } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<any>({});
+  const [localProfile, setLocalProfile] = useState<any>({}); // Local state for inputs
   const [astroData, setAstroData] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Load full profile from localStorage
     const stored = localStorage.getItem("qwl-profile");
     if (stored) {
       const parsed = JSON.parse(stored);
-      setProfile(parsed.state?.profile || {});
+      const loadedProfile = parsed.state?.profile || {};
+      setProfile(loadedProfile);
+      setLocalProfile(loadedProfile); // Initialize local state
       setAstroData({
-        sunSign: parsed.state?.profile?.sunSign,
-        moonSign: parsed.state?.profile?.moonSign,
-        risingSign: parsed.state?.profile?.risingSign,
-        archetype: parsed.state?.profile?.quantumProfile?.archetype,
-        element: parsed.state?.profile?.elemental?.element,
+        sunSign: loadedProfile.sunSign,
+        moonSign: loadedProfile.moonSign,
+        risingSign: loadedProfile.risingSign,
+        archetype: loadedProfile.quantumProfile?.archetype,
+        element: loadedProfile.elemental?.element,
       });
     }
   }, []);
 
-  async function updateProfile(updates: any) {
+  // Debounced local update (no API calls)
+  const updateLocalProfile = useCallback((field: string, value: string) => {
+    setLocalProfile((prev: any) => ({ ...prev, [field]: value }));
+    setIsDirty(true);
+  }, []);
+
+  // Save profile (called on blur or explicit save)
+  async function saveProfile() {
+    if (!isDirty) return;
+    
     setSaving(true);
     setSaved(false);
     
+    let updates = { ...localProfile };
+    
     // If birth data changed, recalculate astrology
-    if (updates.birthDate || updates.birthTime || updates.birthPlace) {
+    const birthDataChanged = 
+      localProfile.birthDate !== profile.birthDate ||
+      localProfile.birthTime !== profile.birthTime ||
+      localProfile.birthPlace !== profile.birthPlace;
+      
+    if (birthDataChanged && localProfile.birthDate) {
       try {
         const res = await fetch("/api/astrology/calculate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            birthDate: updates.birthDate || profile.birthDate,
-            birthTime: updates.birthTime || profile.birthTime,
-            birthPlace: updates.birthPlace || profile.birthPlace,
+            birthDate: localProfile.birthDate,
+            birthTime: localProfile.birthTime,
+            birthPlace: localProfile.birthPlace,
           }),
         });
         
@@ -52,7 +73,7 @@ export default function ProfilePage() {
             risingSign: astro.risingSign,
             elemental: astro.elemental,
             quantumProfile: {
-              ...profile.quantumProfile,
+              ...localProfile.quantumProfile,
               archetype: astro.personality?.archetype,
               strengths: astro.personality?.strengths,
               wealthStyle: astro.personality?.wealthStyle,
@@ -71,36 +92,37 @@ export default function ProfilePage() {
       }
     }
     
-    // Update profile
-    const updatedProfile = { ...profile, ...updates };
-    setProfile(updatedProfile);
+    // Update profile state
+    setProfile(updates);
+    setLocalProfile(updates);
     
     // Save to localStorage
     localStorage.setItem("qwl-profile", JSON.stringify({
-      state: { profile: updatedProfile },
+      state: { profile: updates },
       version: 0
     }));
     
-    // Trigger AI insights regeneration if we have enough data
-    if (updatedProfile.birthDate && updatedProfile.name) {
-      try {
-        await fetch("/api/ai/insights", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-            profile: updatedProfile,
-            portfolio: {},
-            marketData: {}
-          }),
-        });
-      } catch (e) {
-        console.error("AI insights generation error:", e);
-      }
-    }
+    // Clear insights cache so dashboard fetches fresh data
+    localStorage.removeItem('qwl-cached-insights');
     
+    setIsDirty(false);
     setSaving(false);
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
+  }
+  
+  // Legacy function for select dropdowns (immediate save)
+  async function updateProfileSelect(field: string, value: string) {
+    setLocalProfile((prev: any) => ({ ...prev, [field]: value }));
+    setIsDirty(true);
+    
+    // Debounce the save for select fields
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      saveProfile();
+    }, 500);
   }
 
   return (
@@ -120,9 +142,9 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Name</label>
             <input 
-              value={profile.name || ""} 
-              onChange={(e) => updateProfile({ name: e.target.value })}
-              onBlur={() => profile.name && updateProfile({})} // Save on blur
+              value={localProfile.name || ""} 
+              onChange={(e) => updateLocalProfile("name", e.target.value)}
+              onBlur={saveProfile}
               className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="Your name"
             />
@@ -131,9 +153,9 @@ export default function ProfilePage() {
             <label className="text-xs text-[var(--muted)] block mb-1">Email</label>
             <input 
               type="email"
-              value={profile.email || ""} 
-              onChange={(e) => updateProfile({ email: e.target.value })}
-              onBlur={() => profile.email && updateProfile({})} // Save on blur
+              value={localProfile.email || ""} 
+              onChange={(e) => updateLocalProfile("email", e.target.value)}
+              onBlur={saveProfile}
               className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="your@email.com"
             />
@@ -151,25 +173,25 @@ export default function ProfilePage() {
           <div>
             <DatePicker
               label="Birth Date"
-              value={profile.birthDate || ""}
-              onChange={(date) => updateProfile({ birthDate: date })}
+              value={localProfile.birthDate || ""}
+              onChange={(date) => { updateLocalProfile("birthDate", date); }}
               placeholder="Select birth date"
             />
           </div>
           <div>
             <TimePicker
               label="Birth Time"
-              value={profile.birthTime || ""}
-              onChange={(time) => updateProfile({ birthTime: time })}
+              value={localProfile.birthTime || ""}
+              onChange={(time) => { updateLocalProfile("birthTime", time); }}
               placeholder="Select birth time"
             />
           </div>
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Birth Place</label>
             <input 
-              value={profile.birthPlace || ""} 
-              onChange={(e) => updateProfile({ birthPlace: e.target.value })}
-              onBlur={() => profile.birthPlace && updateProfile({})} // Save on blur
+              value={localProfile.birthPlace || ""} 
+              onChange={(e) => updateLocalProfile("birthPlace", e.target.value)}
+              onBlur={saveProfile}
               className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="City, Country"
             />
@@ -212,8 +234,8 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Portfolio Size</label>
             <select 
-              value={profile.portfolioSize || ""} 
-              onChange={(e) => updateProfile({ portfolioSize: e.target.value })}
+              value={localProfile.portfolioSize || ""} 
+              onChange={(e) => updateProfileSelect("portfolioSize", e.target.value)}
               className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
               <option value="" className="bg-[#0a1628]">Select size</option>
@@ -227,8 +249,8 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Experience Level</label>
             <select 
-              value={profile.experience || ""} 
-              onChange={(e) => updateProfile({ experience: e.target.value })}
+              value={localProfile.experience || ""} 
+              onChange={(e) => updateProfileSelect("experience", e.target.value)}
               className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
               <option value="" className="bg-[#0a1628]">Select level</option>
@@ -241,8 +263,8 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Risk Tolerance</label>
             <select 
-              value={profile.riskTolerance || ""} 
-              onChange={(e) => updateProfile({ riskTolerance: e.target.value })}
+              value={localProfile.riskTolerance || ""} 
+              onChange={(e) => updateProfileSelect("riskTolerance", e.target.value)}
               className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
               <option value="" className="bg-[#0a1628]">Select tolerance</option>
@@ -255,8 +277,8 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Time Horizon</label>
             <select 
-              value={profile.timeHorizon || ""} 
-              onChange={(e) => updateProfile({ timeHorizon: e.target.value })}
+              value={localProfile.timeHorizon || ""} 
+              onChange={(e) => updateProfileSelect("timeHorizon", e.target.value)}
               className="w-full bg-[#0a1628] border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all cursor-pointer"
             >
               <option value="" className="bg-[#0a1628]">Select horizon</option>
@@ -279,9 +301,9 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Primary Intention</label>
             <input 
-              value={profile.intention || ""} 
-              onChange={(e) => updateProfile({ intention: e.target.value })}
-              onBlur={() => profile.intention && updateProfile({})} // Save on blur
+              value={localProfile.intention || ""} 
+              onChange={(e) => updateLocalProfile("intention", e.target.value)}
+              onBlur={saveProfile}
               className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="What's your main goal with wealth creation?"
             />
@@ -289,9 +311,9 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Biggest Challenge</label>
             <input 
-              value={profile.biggestChallenge || ""} 
-              onChange={(e) => updateProfile({ biggestChallenge: e.target.value })}
-              onBlur={() => profile.biggestChallenge && updateProfile({})} // Save on blur
+              value={localProfile.biggestChallenge || ""} 
+              onChange={(e) => updateLocalProfile("biggestChallenge", e.target.value)}
+              onBlur={saveProfile}
               className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm outline-none focus:border-cyan-400 transition-all"
               placeholder="What's holding you back?"
             />
@@ -299,9 +321,9 @@ export default function ProfilePage() {
           <div>
             <label className="text-xs text-[var(--muted)] block mb-1">Ideal Outcome</label>
             <textarea 
-              value={profile.idealOutcome || ""} 
-              onChange={(e) => updateProfile({ idealOutcome: e.target.value })}
-              onBlur={() => profile.idealOutcome && updateProfile({})} // Save on blur
+              value={localProfile.idealOutcome || ""} 
+              onChange={(e) => updateLocalProfile("idealOutcome", e.target.value)}
+              onBlur={saveProfile}
               className="w-full bg-transparent border border-white/10 rounded-lg px-3 py-2 text-sm min-h-[80px] outline-none focus:border-cyan-400 transition-all resize-none"
               placeholder="Describe your ideal financial future..."
             />
@@ -312,8 +334,8 @@ export default function ProfilePage() {
       {/* Save Button */}
       <div className="flex justify-end">
         <button
-          onClick={() => updateProfile({})}
-          disabled={saving}
+          onClick={saveProfile}
+          disabled={saving || !isDirty}
           className="flex items-center gap-2 px-6 py-3 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-medium hover:shadow-[0_0_30px_rgba(0,212,255,0.4)] transition-all disabled:opacity-50"
         >
           {saved ? (
@@ -329,7 +351,7 @@ export default function ProfilePage() {
           ) : (
             <>
               <Save size={18} />
-              Save Profile
+              {isDirty ? 'Save Changes' : 'Save Profile'}
             </>
           )}
         </button>

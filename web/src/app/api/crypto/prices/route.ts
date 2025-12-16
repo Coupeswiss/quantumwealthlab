@@ -36,20 +36,50 @@ export async function GET() {
       if (!response.ok) throw new Error(`CG status ${response.status}`);
       data = await response.json();
     } catch (e) {
-      // 2) Fallback to Coinbase spot price endpoints (per-asset)
+      // 2) Try Binance API (has 24h change and volume)
       try {
-        const [btc, eth, sol] = await Promise.all([
-          fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(r => r.json()),
-          fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot').then(r => r.json()),
-          fetch('https://api.coinbase.com/v2/prices/SOL-USD/spot').then(r => r.json()),
-        ]);
+        const binanceSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+        const binanceResponses = await Promise.all(
+          binanceSymbols.map(symbol => 
+            fetch(`https://api.binance.com/api/v3/ticker/24hr?symbol=${symbol}`)
+              .then(r => r.json())
+          )
+        );
+        
+        const [btcData, ethData, solData] = binanceResponses;
         data = {
-          bitcoin: { usd: parseFloat(btc?.data?.amount ?? '0') },
-          ethereum: { usd: parseFloat(eth?.data?.amount ?? '0') },
-          solana: { usd: parseFloat(sol?.data?.amount ?? '0') },
+          bitcoin: { 
+            usd: parseFloat(btcData?.lastPrice ?? '0'),
+            usd_24h_change: parseFloat(btcData?.priceChangePercent ?? '0'),
+            usd_24h_vol: parseFloat(btcData?.quoteVolume ?? '0'),
+          },
+          ethereum: { 
+            usd: parseFloat(ethData?.lastPrice ?? '0'),
+            usd_24h_change: parseFloat(ethData?.priceChangePercent ?? '0'),
+            usd_24h_vol: parseFloat(ethData?.quoteVolume ?? '0'),
+          },
+          solana: { 
+            usd: parseFloat(solData?.lastPrice ?? '0'),
+            usd_24h_change: parseFloat(solData?.priceChangePercent ?? '0'),
+            usd_24h_vol: parseFloat(solData?.quoteVolume ?? '0'),
+          },
         };
       } catch (e2) {
-        throw new Error('Failed all price providers');
+        // 3) Last resort: Coinbase for spot prices only
+        try {
+          const [btc, eth, sol] = await Promise.all([
+            fetch('https://api.coinbase.com/v2/prices/BTC-USD/spot').then(r => r.json()),
+            fetch('https://api.coinbase.com/v2/prices/ETH-USD/spot').then(r => r.json()),
+            fetch('https://api.coinbase.com/v2/prices/SOL-USD/spot').then(r => r.json()),
+          ]);
+          data = {
+            bitcoin: { usd: parseFloat(btc?.data?.amount ?? '0') },
+            ethereum: { usd: parseFloat(eth?.data?.amount ?? '0') },
+            solana: { usd: parseFloat(sol?.data?.amount ?? '0') },
+          };
+        } catch (e3) {
+          throw new Error('Failed all price providers');
+        }
       }
     }
     

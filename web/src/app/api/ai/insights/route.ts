@@ -53,13 +53,15 @@ export async function POST(req: Request) {
       ? (cleanIntention.split(/\.\s+/)[0] || cleanIntention).slice(0, 120) + '…'
       : (cleanIntention || 'build sustainable wealth');
 
-    // Utility: sanitize any AI/string output to avoid leaking undefined/null and extra spaces
+    // Utility: sanitize any AI/string output to avoid leaking undefined/null/Unknown and extra spaces
     const sanitizeText = (text: unknown): string => {
       if (text == null) return '';
       const asString = typeof text === 'string' ? text : JSON.stringify(text);
       return asString
         .replace(/\bundefined\b/gi, '')
         .replace(/\bnull\b/gi, '')
+        .replace(/\bUnknown\b/g, 'your') // Replace "Unknown" with neutral wording
+        .replace(/your your/gi, 'your') // Clean up double "your"
         .replace(/\s{2,}/g, ' ')
         .replace(/\s+([.,!?;:])/g, '$1')
         .trim();

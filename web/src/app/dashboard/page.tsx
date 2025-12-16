@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUp, ArrowDown, Sparkles, TrendingUp, Newspaper, Activity, DollarSign, Zap } from "lucide-react";
 import { LineChart, Line, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { getPortfolio, Holding } from "@/lib/portfolio-utils";
 
 type CryptoPrice = {
   price: number;
@@ -35,6 +36,15 @@ export default function DashboardHome() {
   const [chartData, setChartData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
+  
+  // Portfolio state
+  const [holdings, setHoldings] = useState<Holding[]>([]);
+  const [portfolioStats, setPortfolioStats] = useState({
+    totalValue: 0,
+    totalChange: 0,
+    positionsCount: 0,
+    profitableCount: 0,
+  });
 
   // Update time every second for live feel - only on client to avoid hydration issues
   useEffect(() => {
@@ -49,9 +59,94 @@ export default function DashboardHome() {
   useEffect(() => {
     if (typeof window !== "undefined") {
       const savedProfile = localStorage.getItem("qwl-profile");
-      if (savedProfile) setProfile(JSON.parse(savedProfile));
+      if (savedProfile) {
+        try {
+          const parsed = JSON.parse(savedProfile);
+          // Handle nested structure: { state: { profile: {...} } }
+          const profileData = parsed.state?.profile || parsed;
+          setProfile(profileData);
+        } catch (e) {
+          console.error("Failed to parse profile:", e);
+        }
+      }
     }
   }, []);
+
+  // Load portfolio from localStorage and listen for changes
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const loadPortfolio = () => {
+        const portfolio = getPortfolio();
+        setHoldings(portfolio);
+      };
+      
+      loadPortfolio();
+      
+      // Listen for storage changes (when portfolio page updates)
+      const handleStorageChange = (e: StorageEvent) => {
+        if (e.key === 'qwl-wallets' || e.key === 'portfolio') {
+          loadPortfolio();
+        }
+      };
+      
+      window.addEventListener('storage', handleStorageChange);
+      
+      // Also poll periodically in case storage events don't fire (same tab)
+      const interval = setInterval(loadPortfolio, 5000);
+      
+      return () => {
+        window.removeEventListener('storage', handleStorageChange);
+        clearInterval(interval);
+      };
+    }
+  }, []);
+
+  // Update portfolio stats when holdings or prices change
+  useEffect(() => {
+    if (holdings.length === 0) {
+      setPortfolioStats({
+        totalValue: 0,
+        totalChange: 0,
+        positionsCount: 0,
+        profitableCount: 0,
+      });
+      return;
+    }
+
+    // Calculate stats with current prices
+    let totalValue = 0;
+    let weightedChange = 0;
+    let profitableCount = 0;
+
+    const updatedHoldings = holdings.map(h => {
+      const priceData = prices[h.symbol.toUpperCase()];
+      const currentPrice = priceData?.price || h.currentPrice || 0;
+      const change24h = priceData?.change24h || h.change24h || 0;
+      const value = h.amount * currentPrice;
+      
+      totalValue += value;
+      
+      // Track profitable positions (positive 24h change)
+      if (change24h > 0) profitableCount++;
+      
+      return { ...h, currentPrice, value, change24h };
+    });
+
+    // Calculate weighted average change
+    if (totalValue > 0) {
+      weightedChange = updatedHoldings.reduce((sum, h) => {
+        const weight = (h.value || 0) / totalValue;
+        return sum + ((h.change24h || 0) * weight);
+      }, 0);
+    }
+
+    setPortfolioStats({
+      totalValue,
+      totalChange: weightedChange,
+      positionsCount: holdings.length,
+      profitableCount,
+    });
+  }, [holdings, prices]);
 
   // Fetch crypto prices
   useEffect(() => {
@@ -318,21 +413,37 @@ export default function DashboardHome() {
 
       {/* Price Ticker */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Object.entries(prices).map(([symbol, data]) => (
-          <div key={symbol} className="qwl-card rounded-xl p-4 hover:scale-105 transition-transform cursor-pointer qwl-pulse">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-cyan-400">{symbol}</span>
-              <div className={`flex items-center gap-1 text-xs font-bold ${
-                data.change24h > 0 ? 'text-green-400' : 'text-red-400'
-              }`}>
-                {data.change24h > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                {Math.abs(data.change24h).toFixed(1)}%
+        {Object.keys(prices).length > 0 ? (
+          Object.entries(prices).map(([symbol, data]) => (
+            <div key={symbol} className="qwl-card rounded-xl p-4 hover:scale-105 transition-transform cursor-pointer qwl-pulse">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-cyan-400">{symbol}</span>
+                <div className={`flex items-center gap-1 text-xs font-bold ${
+                  data.change24h > 0 ? 'text-green-400' : data.change24h < 0 ? 'text-red-400' : 'text-gray-400'
+                }`}>
+                  {data.change24h !== 0 && (data.change24h > 0 ? <ArrowUp size={12} /> : <ArrowDown size={12} />)}
+                  {Math.abs(data.change24h || 0).toFixed(1)}%
+                </div>
+              </div>
+              <div className="text-xl font-bold text-white">{formatPrice(data.price)}</div>
+              <div className="text-xs text-[var(--muted)] mt-1">
+                {data.volume > 0 ? `Vol: ${formatVolume(data.volume)}` : 'Loading volume...'}
               </div>
             </div>
-            <div className="text-xl font-bold text-white">{formatPrice(data.price)}</div>
-            <div className="text-xs text-[var(--muted)] mt-1">Vol: {formatVolume(data.volume)}</div>
-          </div>
-        ))}
+          ))
+        ) : (
+          // Loading skeleton
+          ['BTC', 'ETH', 'SOL', 'QBIT'].map((symbol) => (
+            <div key={symbol} className="qwl-card rounded-xl p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-bold text-cyan-400">{symbol}</span>
+                <div className="h-4 w-12 bg-cyan-500/20 rounded animate-pulse" />
+              </div>
+              <div className="h-6 w-24 bg-cyan-500/20 rounded animate-pulse mb-2" />
+              <div className="h-3 w-16 bg-cyan-500/10 rounded animate-pulse" />
+            </div>
+          ))
+        )}
       </div>
 
       {/* Main Grid */}
@@ -488,18 +599,38 @@ export default function DashboardHome() {
             <DollarSign className="text-cyan-400" size={20} />
             <span className="text-sm font-bold text-cyan-400">TOTAL VALUE</span>
           </div>
-          <div className="text-3xl font-bold qwl-text-gradient">$12,450.32</div>
-          <div className="text-sm text-green-400 mt-2 font-bold">+5.2% TODAY</div>
+          <div className="text-3xl font-bold qwl-text-gradient">
+            {portfolioStats.totalValue > 0 
+              ? `$${portfolioStats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              : holdings.length > 0 ? 'Calculating...' : '$0.00'
+            }
+          </div>
+          <div className={`text-sm mt-2 font-bold ${portfolioStats.totalChange >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+            {portfolioStats.totalValue > 0 
+              ? `${portfolioStats.totalChange >= 0 ? '+' : ''}${portfolioStats.totalChange.toFixed(2)}% TODAY`
+              : holdings.length > 0 ? 'Loading...' : 'Add holdings'
+            }
+          </div>
         </div>
         <div className="qwl-card rounded-xl p-5">
-          <div className="text-sm font-bold text-[var(--muted)] mb-3">24H VOLUME</div>
-          <div className="text-3xl font-bold text-white">$2.4M</div>
-          <div className="text-sm text-[var(--muted)] mt-2">Across 3 wallets</div>
+          <div className="text-sm font-bold text-[var(--muted)] mb-3">MARKET VOLUME</div>
+          <div className="text-3xl font-bold text-white">
+            {prices.BTC?.volume 
+              ? `$${(prices.BTC.volume / 1e9).toFixed(1)}B`
+              : 'Loading...'
+            }
+          </div>
+          <div className="text-sm text-[var(--muted)] mt-2">BTC 24h volume</div>
         </div>
         <div className="qwl-card rounded-xl p-5">
           <div className="text-sm font-bold text-[var(--muted)] mb-3">ACTIVE POSITIONS</div>
-          <div className="text-3xl font-bold text-white">7</div>
-          <div className="text-sm text-green-400 mt-2 font-medium">4 profitable</div>
+          <div className="text-3xl font-bold text-white">{portfolioStats.positionsCount}</div>
+          <div className={`text-sm mt-2 font-medium ${portfolioStats.profitableCount > 0 ? 'text-green-400' : 'text-[var(--muted)]'}`}>
+            {portfolioStats.positionsCount > 0 
+              ? `${portfolioStats.profitableCount} profitable`
+              : 'No positions yet'
+            }
+          </div>
         </div>
       </div>
     </div>

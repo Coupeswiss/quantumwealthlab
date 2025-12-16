@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { ArrowRight, Sparkles, User, Calendar, MapPin } from "lucide-react";
+import { ArrowRight, Sparkles, User, Calendar, MapPin, AlertCircle } from "lucide-react";
 import DatePicker from "@/components/DatePicker";
 import TimePicker from "@/components/TimePicker";
 
 export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     // Basic info
     name: "",
@@ -44,36 +45,59 @@ export default function Onboarding() {
   }
 
   async function complete() {
+    setError(null);
+    
+    // Validate required fields
+    if (!formData.name.trim()) {
+      setError("Please enter your name");
+      setStep(1);
+      return;
+    }
+    
+    if (!formData.birthDate) {
+      setError("Please enter your birth date for astrological calculations");
+      setStep(2);
+      return;
+    }
+    
     setSaving(true);
     
     try {
+      let astroData: any = {};
+      
       // Calculate astrological profile
-      const astroRes = await fetch("/api/astrology/calculate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          birthDate: formData.birthDate,
-          birthTime: formData.birthTime,
-          birthPlace: formData.birthPlace,
-        }),
-      });
+      try {
+        const astroRes = await fetch("/api/astrology/calculate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            birthDate: formData.birthDate,
+            birthTime: formData.birthTime,
+            birthPlace: formData.birthPlace,
+          }),
+        });
+        
+        if (astroRes.ok) {
+          astroData = await astroRes.json();
+        }
+      } catch (astroError) {
+        console.warn("Astrology calculation failed, using defaults:", astroError);
+      }
       
-      const astroData = await astroRes.json();
-      
-      // Create comprehensive profile with astrology
+      // Create comprehensive profile with astrology (with fallbacks)
       const fullProfile = {
         ...formData,
-        sunSign: astroData.sunSign,
-        moonSign: astroData.moonSign,
-        risingSign: astroData.risingSign,
-        elemental: astroData.elemental,
-        natalChart: astroData.natalChart,
-        currentTransits: astroData.currentTransits,
+        sunSign: astroData.sunSign || calculateSunSignFromDate(formData.birthDate),
+        moonSign: astroData.moonSign || "Unknown",
+        risingSign: astroData.risingSign || "Unknown",
+        elemental: astroData.elemental || { element: "Unknown" },
+        natalChart: astroData.natalChart || {},
+        currentTransits: astroData.currentTransits || {},
         quantumProfile: {
-          archetype: astroData.personality?.archetype,
-          strengths: astroData.personality?.strengths,
-          challenges: astroData.personality?.challenges,
-          wealthStyle: astroData.personality?.wealthStyle,
+          archetype: astroData.personality?.archetype || "The Seeker",
+          strengths: astroData.personality?.strengths || ["Determination", "Growth mindset"],
+          challenges: astroData.personality?.challenges || ["Patience"],
+          wealthStyle: astroData.personality?.wealthStyle || "balanced",
         },
         insights: [],
         journalEntries: [],
@@ -90,28 +114,36 @@ export default function Onboarding() {
       localStorage.setItem("qwl_profile", JSON.stringify(formData));
       localStorage.setItem("qwl_onboarded", "true");
       
-      // Generate initial AI insights for the user (use supported agent)
-      await fetch("/api/ai/agents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile: fullProfile,
-          agentType: "wisdom",
-          question: "Welcome the user and provide their initial quantum wealth activation message tailored to their profile."
-        }),
-      });
+      // Clear any cached insights so dashboard fetches fresh
+      localStorage.removeItem('qwl-cached-insights');
       
       // Redirect to dashboard
-      setTimeout(() => {
-        window.location.href = "/dashboard";
-      }, 500);
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error("Error completing onboarding:", error);
-      // Still save basic profile even if astrology fails
-      localStorage.setItem("qwl_profile", JSON.stringify(formData));
-      localStorage.setItem("qwl_onboarded", "true");
-      window.location.href = "/dashboard";
+      setError("Something went wrong. Please try again.");
+      setSaving(false);
     }
+  }
+  
+  // Simple sun sign calculation based on date
+  function calculateSunSignFromDate(dateString: string): string {
+    const date = new Date(dateString);
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    
+    if ((month === 3 && day >= 21) || (month === 4 && day <= 19)) return "Aries";
+    if ((month === 4 && day >= 20) || (month === 5 && day <= 20)) return "Taurus";
+    if ((month === 5 && day >= 21) || (month === 6 && day <= 20)) return "Gemini";
+    if ((month === 6 && day >= 21) || (month === 7 && day <= 22)) return "Cancer";
+    if ((month === 7 && day >= 23) || (month === 8 && day <= 22)) return "Leo";
+    if ((month === 8 && day >= 23) || (month === 9 && day <= 22)) return "Virgo";
+    if ((month === 9 && day >= 23) || (month === 10 && day <= 22)) return "Libra";
+    if ((month === 10 && day >= 23) || (month === 11 && day <= 21)) return "Scorpio";
+    if ((month === 11 && day >= 22) || (month === 12 && day <= 21)) return "Sagittarius";
+    if ((month === 12 && day >= 22) || (month === 1 && day <= 19)) return "Capricorn";
+    if ((month === 1 && day >= 20) || (month === 2 && day <= 18)) return "Aquarius";
+    return "Pisces";
   }
 
   return (
@@ -123,6 +155,14 @@ export default function Onboarding() {
           <div className={`h-2 w-24 rounded-full ${step >= 2 ? 'bg-[var(--accent)]' : 'bg-white/10'}`} />
           <div className={`h-2 w-24 rounded-full ${step >= 3 ? 'bg-[var(--accent)]' : 'bg-white/10'}`} />
         </div>
+
+        {/* Error Display */}
+        {error && (
+          <div className="mb-4 p-4 rounded-lg bg-red-500/10 border border-red-500/40 flex items-center gap-3">
+            <AlertCircle className="text-red-400 flex-shrink-0" size={20} />
+            <p className="text-sm text-red-400">{error}</p>
+          </div>
+        )}
 
         {/* Step 1: Basic Info */}
         {step === 1 && (
